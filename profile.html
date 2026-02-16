@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <title data-i18n="app_title">My Bubble — Profil</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-container">
+    <header class="app-header app-header-nav">
+      <div>
+        <h1 data-i18n="app_title">My Bubble</h1>
+        <p class="subtitle" data-i18n="profile_subtitle">Профиль пользователя</p>
+      </div>
+      <nav class="nav">
+        <a href="feed.html" class="nav-link" data-i18n="nav_feed">Лента</a>
+        <a href="profile.html" class="nav-link active" data-i18n="nav_profile">Профиль</a>
+        <select id="languageSelect" class="language-select">
+          <option value="cs" data-i18n="lang_cs">Čeština</option>
+          <option value="ru" data-i18n="lang_ru">Русский</option>
+          <option value="en" data-i18n="lang_en">English</option>
+        </select>
+        <button id="logoutBtn" class="btn ghost" data-i18n="nav_logout">Выйти</button>
+      </nav>
+    </header>
+
+    <main class="layout-one-column">
+      <section class="card profile-card">
+        <div class="profile-main">
+          <div class="avatar" id="profileAvatar"><span id="profileAvatarLetter"></span></div>
+          <div>
+            <h2 id="profileUsername"></h2>
+            <p id="profileEmail" class="muted"></p>
+            <p id="profileBio"></p>
+          </div>
+        </div>
+
+        <div class="profile-edit">
+          <h3 data-i18n="edit_bio_title">Редактировать био</h3>
+          <form id="bioForm">
+            <textarea id="bioInput" rows="3" data-i18n="bio_placeholder" placeholder="Расскажите о себе..."></textarea>
+            <button type="submit" class="btn primary" data-i18n="edit_bio_button">Сохранить</button>
+          </form>
+          <div class="form-group" style="margin-top: 10px;">
+            <label for="avatarInput" class="file-input-label" data-i18n="avatar_upload_label">Фото профиля</label>
+            <input type="file" id="avatarInput" class="file-input" accept="image/*">
+          </div>
+        </div>
+
+        <div class="profile-stats">
+          <div class="stat">
+            <span id="postsCount">0</span>
+            <a href="relations.html?type=posts" class="muted" data-i18n="posts_label">Постов</a>
+          </div>
+          <div class="stat">
+            <span id="followersCount">0</span>
+            <a id="followersLink" href="#" class="muted" data-i18n="followers_label">Подписчики</a>
+          </div>
+          <div class="stat">
+            <span id="followingCount">0</span>
+            <a id="followingLink" href="#" class="muted" data-i18n="following_label">Подписки</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h3 data-i18n="my_posts_title">Мои посты</h3>
+        <div id="userPostsContainer" class="posts-list">
+          <!-- Посты текущего пользователя -->
+        </div>
+      </section>
+    </main>
+
+    <footer class="app-footer">
+      <p data-i18n="profile_footer">Профиль и статистика берутся из LocalStorage.</p>
+    </footer>
+  </div>
+
+  <script src="translations.js"></script>
+  <script src="api.js"></script>
+  <script src="script_api.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      if (!window.App) return;
+      App.requireAuth();
+      App.renderProfilePage();
+      if (window.I18n) {
+        window.I18n.apply(document);
+      }
+    });
+  </script>
+</body>
+</html>

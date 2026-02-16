@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <title data-i18n="app_title">My Bubble — Vstup / Registrace</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-container">
+    <header class="app-header">
+      <h1 data-i18n="app_title">My Bubble</h1>
+      <p class="subtitle" data-i18n="subtitle">Lokální sociální síť (LocalStorage)</p>
+      <select id="languageSelect" class="language-select">
+        <option value="cs" data-i18n="lang_cs">Čeština</option>
+        <option value="ru" data-i18n="lang_ru">Русский</option>
+        <option value="en" data-i18n="lang_en">English</option>
+      </select>
+    </header>
+
+    <main class="card auth-card">
+      <div class="tabs">
+        <button id="loginTab" class="tab-button active" data-i18n="login_tab">Přihlášení</button>
+        <button id="registerTab" class="tab-button" data-i18n="register_tab">Registrace</button>
+      </div>
+
+      <!-- Форма входа -->
+      <form id="loginForm" class="form active">
+        <div class="form-group">
+          <label for="loginIdentifier" data-i18n="login_identifier_label">Uživatelské jméno nebo email</label>
+          <input type="text" id="loginIdentifier" required>
+        </div>
+        <div class="form-group">
+          <label for="loginPassword" data-i18n="login_password_label">Heslo</label>
+          <input type="password" id="loginPassword" required>
+        </div>
+        <button type="submit" class="btn primary" data-i18n="login_button">Přihlásit se</button>
+        <p id="loginError" class="error-text"></p>
+      </form>
+
+      <!-- Форма регистрации -->
+      <form id="registerForm" class="form">
+        <div class="form-group">
+          <label for="regUsername" data-i18n="register_username_label">Uživatelské jméno</label>
+          <input type="text" id="regUsername" required>
+        </div>
+        <div class="form-group">
+          <label for="regEmail" data-i18n="register_email_label">Email</label>
+          <input type="email" id="regEmail" required>
+        </div>
+        <div class="form-group">
+          <label for="regPassword" data-i18n="register_password_label">Heslo</label>
+          <input type="password" id="regPassword" required>
+        </div>
+        <button type="submit" class="btn primary" data-i18n="register_button">Registrovat se</button>
+        <p id="registerError" class="error-text"></p>
+      </form>
+    </main>
+
+    <footer class="app-footer">
+      <p data-i18n="footer_index">Projekt pro maturitní práci — bez serveru, pouze LocalStorage.</p>
+    </footer>
+  </div>
+
+  <script src="translations.js"></script>
+  <script src="api.js"></script>
+  <script src="script_api.js"></script>
+  <script>
+    // Простой переключатель вкладок Вход / Регистрация (чтобы не дублировать на JS-файле логику страниц)
+    const loginTab = document.getElementById('loginTab');
+    const registerTab = document.getElementById('registerTab');
+    const loginForm = document.getElementById('loginForm');
+    const registerForm = document.getElementById('registerForm');
+
+    loginTab.addEventListener('click', () => {
+      loginTab.classList.add('active');
+      registerTab.classList.remove('active');
+      loginForm.classList.add('active');
+      registerForm.classList.remove('active');
+    });
+
+    registerTab.addEventListener('click', () => {
+      registerTab.classList.add('active');
+      loginTab.classList.remove('active');
+      registerForm.classList.add('active');
+      loginForm.classList.remove('active');
+    });
+
+    // Применяем переводы после первичной инициализации
+    if (window.I18n) {
+      window.I18n.apply(document);
+    }
+  </script>
+</body>
+</html>

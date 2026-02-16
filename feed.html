@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <title data-i18n="feed_title">My Bubble — Lenta</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-container">
+    <header class="app-header app-header-nav">
+      <div>
+        <h1 data-i18n="feed_title">My Bubble</h1>
+        <p class="subtitle" data-i18n="feed_subtitle">Лента постов</p>
+      </div>
+      <nav class="nav">
+        <a href="feed.html" class="nav-link active" data-i18n="nav_feed">Лента</a>
+        <a href="profile.html" class="nav-link" data-i18n="nav_profile">Профиль</a>
+        <select id="languageSelect" class="language-select">
+          <option value="cs" data-i18n="lang_cs">Čeština</option>
+          <option value="ru" data-i18n="lang_ru">Русский</option>
+          <option value="en" data-i18n="lang_en">English</option>
+        </select>
+        <button id="logoutBtn" class="btn ghost" data-i18n="nav_logout">Выйти</button>
+      </nav>
+    </header>
+
+    <main class="layout-two-columns">
+      <section class="column-main">
+        <div class="card">
+          <h2 data-i18n="create_post_title">Создать пост</h2>
+          <form id="postForm">
+            <div class="form-group">
+              <textarea id="postContent" rows="3" data-i18n="create_post_placeholder" placeholder="Что у вас нового?" required></textarea>
+            </div>
+            <div class="form-group">
+              <label for="postFile" class="file-input-label" data-i18n="attach_file_label">Прикрепить файл</label>
+              <input type="file" id="postFile" class="file-input">
+            </div>
+            <button type="submit" class="btn primary" data-i18n="create_post_button">Опубликовать</button>
+          </form>
+        </div>
+
+        <div class="card">
+          <h2 data-i18n="feed_header">Лента</h2>
+          <div id="postsContainer" class="posts-list">
+            <!-- Посты ленты будут отрисовываться здесь через JS -->
+          </div>
+        </div>
+      </section>
+
+      <aside class="column-side">
+        <div class="card">
+          <h3 data-i18n="search_users_title">Поиск пользователей</h3>
+          <input type="text" id="searchInput" data-i18n="search_placeholder" placeholder="Введите username">
+          <div id="searchResults" class="users-list">
+            <!-- Результаты поиска -->
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 data-i18n="recommendations_title">Рекомендации</h3>
+          <div id="recommendationsContainer" class="users-list">
+            <!-- Рекомендованные пользователи -->
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <footer class="app-footer">
+      <p data-i18n="feed_footer">Все данные хранятся на сервере в базе данных SQLite.</p>
+    </footer>
+  </div>
+
+  <script src="texts-db.js"></script>
+  <script src="translations.js"></script>
+  <script src="api.js"></script>
+  <script src="script_api.js"></script>
+  <script>
+    // Инициализация логики ленты после загрузки общей логики script.js
+    document.addEventListener('DOMContentLoaded', () => {
+      if (!window.App) return;
+      App.requireAuth(); // редирект на index.html, если пользователь не залогинен
+      App.renderFeedPage();
+    });
+  </script>
+</body>
+</html>

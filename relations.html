@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <title data-i18n="app_title">My Bubble — Vztahy</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-container">
+    <header class="app-header app-header-nav">
+      <div>
+        <h1 data-i18n="app_title">My Bubble</h1>
+        <p class="subtitle" id="relationsSubtitle">Relations</p>
+      </div>
+      <nav class="nav">
+        <a href="feed.html" class="nav-link" data-i18n="nav_feed">Лента</a>
+        <a href="profile.html" class="nav-link" data-i18n="nav_profile">Профиль</a>
+        <select id="languageSelect" class="language-select">
+          <option value="cs" data-i18n="lang_cs">Čeština</option>
+          <option value="ru" data-i18n="lang_ru">Русский</option>
+          <option value="en" data-i18n="lang_en">English</option>
+        </select>
+        <button id="logoutBtn" class="btn ghost" data-i18n="nav_logout">Выйти</button>
+      </nav>
+    </header>
+
+    <main class="layout-one-column">
+      <section class="card">
+        <h2 id="relationsTitle">Relations</h2>
+        <div id="relationsList" class="users-list">
+          <!-- Список подписчиков / подписок -->
+        </div>
+      </section>
+    </main>
+
+    <footer class="app-footer">
+      <p data-i18n="relations_footer">Seznam je vypočítán z pole followers v LocalStorage.</p>
+    </footer>
+  </div>
+
+  <script src="translations.js"></script>
+  <script src="api.js"></script>
+  <script src="script_api.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      if (!window.App) return;
+      App.requireAuth();
+      App.renderRelationsPage();
+      if (window.I18n) {
+        window.I18n.apply(document);
+      }
+    });
+  </script>
+</body>
+</html>
+

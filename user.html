@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <title data-i18n="app_title">My Bubble — Профиль пользователя</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-container">
+    <header class="app-header app-header-nav">
+      <div>
+        <h1 data-i18n="app_title">My Bubble</h1>
+        <p class="subtitle" data-i18n="user_subtitle">Профиль пользователя</p>
+      </div>
+      <nav class="nav">
+        <a href="feed.html" class="nav-link" data-i18n="nav_feed">Лента</a>
+        <a href="profile.html" class="nav-link" data-i18n="nav_profile">Профиль</a>
+        <select id="languageSelect" class="language-select">
+          <option value="cs" data-i18n="lang_cs">Čeština</option>
+          <option value="ru" data-i18n="lang_ru">Русский</option>
+          <option value="en" data-i18n="lang_en">English</option>
+        </select>
+        <button id="logoutBtn" class="btn ghost" data-i18n="nav_logout">Выйти</button>
+      </nav>
+    </header>
+
+    <main class="layout-one-column">
+      <section class="card profile-card">
+        <div class="profile-main">
+          <div class="avatar" id="viewAvatar"><span id="viewAvatarLetter"></span></div>
+          <div>
+            <h2 id="viewUsername"></h2>
+            <p id="viewBio"></p>
+          </div>
+        </div>
+
+        <div class="profile-stats">
+          <div class="stat">
+            <span id="viewPostsCount">0</span>
+            <a href="#" class="muted" data-i18n="posts_label">Постов</a>
+          </div>
+          <div class="stat">
+            <span id="viewFollowersCount">0</span>
+            <a id="viewFollowersLink" href="#" class="muted" data-i18n="followers_label">Подписчики</a>
+          </div>
+          <div class="stat">
+            <span id="viewFollowingCount">0</span>
+            <a id="viewFollowingLink" href="#" class="muted" data-i18n="following_label">Подписки</a>
+          </div>
+        </div>
+
+        <div class="profile-actions">
+          <button id="followBtn" class="btn primary" data-i18n="follow">Подписаться</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h3 data-i18n="user_posts_title">Посты пользователя</h3>
+        <div id="viewUserPostsContainer" class="posts-list">
+          <!-- Посты пользователя -->
+        </div>
+      </section>
+    </main>
+
+    <footer class="app-footer">
+      <p data-i18n="user_footer">Профиль пользователя.</p>
+    </footer>
+  </div>
+
+  <script src="translations.js"></script>
+  <script src="api.js"></script>
+  <script src="script_api.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      if (!window.App) return;
+      App.requireAuth();
+      App.renderUserPage();
+      if (window.I18n) {
+        window.I18n.apply(document);
+      }
+    });
+  </script>
+</body>
+</html>
