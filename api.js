@@ -229,15 +229,27 @@ const RecommendationsAPI = {
   /**
    * Получить рекомендации пользователей
    */
-  async getUsers() {
-    return apiRequest('/recommendations/users');
+  async getUsers(weights = {}) {
+    const params = new URLSearchParams();
+    Object.entries(weights).forEach(([k, v]) => {
+      if (v === null || v === undefined || Number.isNaN(Number(v))) return;
+      params.set(k, String(v));
+    });
+    const qs = params.toString();
+    return apiRequest(`/recommendations/users${qs ? `?${qs}` : ''}`);
   },
 
   /**
    * Получить рекомендации постов
    */
-  async getPosts() {
-    return apiRequest('/recommendations/posts');
+  async getPosts(weights = {}) {
+    const params = new URLSearchParams();
+    Object.entries(weights).forEach(([k, v]) => {
+      if (v === null || v === undefined || Number.isNaN(Number(v))) return;
+      params.set(k, String(v));
+    });
+    const qs = params.toString();
+    return apiRequest(`/recommendations/posts${qs ? `?${qs}` : ''}`);
   }
 };
 

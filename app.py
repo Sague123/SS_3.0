@@ -505,30 +505,19 @@ def toggle_like(post_id):
         ''', (post_id, user_id, created_at))
         liked = True
     
-    # Обновляем attentionSum поста
+    # Обновляем метрику внимания.
+    # attentionSum — суммарное "внимание" в секундах (условная метрика),
+    # viewsCount — число зафиксированных взаимодействий/просмотров.
+    # Среднее внимание на посте вычисляется как attentionSum / viewsCount.
     cursor.execute('SELECT COUNT(*) as count FROM Likes WHERE postId = ?', (post_id,))
     likes_count = cursor.fetchone()['count']
-    
-    cursor.execute('SELECT COUNT(*) as count FROM Comments WHERE postId = ?', (post_id,))
-    comments_count = cursor.fetchone()['count']
-    
-    cursor.execute('SELECT COUNT(*) as count FROM Reposts WHERE originalPostId = ?', (post_id,))
-    reposts_count = cursor.fetchone()['count']
-    
-    # Формула среднего внимания: (лайки * 1 + комментарии * 2 + репосты * 3) / (время с создания в часах + 1)
-    cursor.execute('SELECT createdAt FROM Posts WHERE id = ?', (post_id,))
-    post_created = cursor.fetchone()['createdAt']
-    post_time = datetime.fromisoformat(post_created)
-    hours_since_creation = (datetime.now() - post_time).total_seconds() / 3600
-    
-    attention_sum = likes_count * 1 + comments_count * 2 + reposts_count * 3
-    average_attention = attention_sum / (hours_since_creation + 1)
-    
+
+    attention_delta_seconds = 5 if liked else 2  # лайк обычно означает больше вовлечения, чем анлайк
     cursor.execute('''
         UPDATE Posts
-        SET attentionSum = ?, viewsCount = viewsCount + 1
+        SET attentionSum = attentionSum + ?, viewsCount = viewsCount + 1
         WHERE id = ?
-    ''', (average_attention, post_id))
+    ''', (attention_delta_seconds, post_id))
     
     conn.commit()
     conn.close()
@@ -627,25 +616,12 @@ def create_comment(post_id):
     
     comment = dict(cursor.fetchone())
     
-    # Обновляем attentionSum поста
-    cursor.execute('SELECT COUNT(*) as count FROM Likes WHERE postId = ?', (post_id,))
-    likes_count = cursor.fetchone()['count']
-    
-    cursor.execute('SELECT COUNT(*) as count FROM Comments WHERE postId = ?', (post_id,))
-    comments_count = cursor.fetchone()['count']
-    
-    cursor.execute('SELECT COUNT(*) as count FROM Reposts WHERE originalPostId = ?', (post_id,))
-    reposts_count = cursor.fetchone()['count']
-    
-    cursor.execute('SELECT createdAt FROM Posts WHERE id = ?', (post_id,))
-    post_created = cursor.fetchone()['createdAt']
-    post_time = datetime.fromisoformat(post_created)
-    hours_since_creation = (datetime.now() - post_time).total_seconds() / 3600
-    
-    attention_sum = likes_count * 1 + comments_count * 2 + reposts_count * 3
-    average_attention = attention_sum / (hours_since_creation + 1)
-    
-    cursor.execute('UPDATE Posts SET attentionSum = ? WHERE id = ?', (average_attention, post_id))
+    # Комментарий — сильный сигнал внимания: увеличиваем суммарное внимание и фиксируем взаимодействие.
+    cursor.execute('''
+        UPDATE Posts
+        SET attentionSum = attentionSum + ?, viewsCount = viewsCount + 1
+        WHERE id = ?
+    ''', (12, post_id))
     
     conn.commit()
     conn.close()
@@ -695,25 +671,12 @@ def create_repost(post_id):
     
     repost_id = cursor.lastrowid
     
-    # Обновляем attentionSum поста
-    cursor.execute('SELECT COUNT(*) as count FROM Likes WHERE postId = ?', (post_id,))
-    likes_count = cursor.fetchone()['count']
-    
-    cursor.execute('SELECT COUNT(*) as count FROM Comments WHERE postId = ?', (post_id,))
-    comments_count = cursor.fetchone()['count']
-    
-    cursor.execute('SELECT COUNT(*) as count FROM Reposts WHERE originalPostId = ?', (post_id,))
-    reposts_count = cursor.fetchone()['count']
-    
-    cursor.execute('SELECT createdAt FROM Posts WHERE id = ?', (post_id,))
-    post_created = cursor.fetchone()['createdAt']
-    post_time = datetime.fromisoformat(post_created)
-    hours_since_creation = (datetime.now() - post_time).total_seconds() / 3600
-    
-    attention_sum = likes_count * 1 + comments_count * 2 + reposts_count * 3
-    average_attention = attention_sum / (hours_since_creation + 1)
-    
-    cursor.execute('UPDATE Posts SET attentionSum = ? WHERE id = ?', (average_attention, post_id))
+    # Репост — тоже сильный сигнал внимания.
+    cursor.execute('''
+        UPDATE Posts
+        SET attentionSum = attentionSum + ?, viewsCount = viewsCount + 1
+        WHERE id = ?
+    ''', (8, post_id))
     
     conn.commit()
     
@@ -896,9 +859,16 @@ def get_user_stats(user_id):
     ''', (user_id,))
     reposts_received = cursor.fetchone()['count']
     
-    # Среднее внимание на постах
-    cursor.execute('SELECT AVG(attentionSum) as avg FROM Posts WHERE userId = ?', (user_id,))
-    avg_attention = cursor.fetchone()['avg'] or 0
+    # Среднее внимание на постах (секунды): SUM(attentionSum) / SUM(viewsCount)
+    cursor.execute('''
+        SELECT COALESCE(SUM(attentionSum), 0) as attSum, COALESCE(SUM(viewsCount), 0) as viewSum
+        FROM Posts
+        WHERE userId = ?
+    ''', (user_id,))
+    att_row = cursor.fetchone()
+    att_sum = att_row['attSum'] or 0
+    view_sum = att_row['viewSum'] or 0
+    avg_attention_seconds = (att_sum / view_sum) if view_sum else 0
     
     conn.close()
     
@@ -911,7 +881,7 @@ def get_user_stats(user_id):
             'likesReceived': likes_received,
             'commentsReceived': comments_received,
             'repostsReceived': reposts_received,
-            'averageAttention': avg_attention
+            'averageAttention': avg_attention_seconds
         }
     })
 
@@ -928,106 +898,145 @@ def get_user_recommendations():
     if not current_user_id:
         return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
     
+    def _w(name: str, default: float) -> float:
+        """Читает вес из query params и приводит к float."""
+        try:
+            return float(request.args.get(name, default))
+        except (TypeError, ValueError):
+            return float(default)
+
+    followers_weight = _w('followersWeight', 1.0)
+    common_following_weight = _w('commonFollowingWeight', 2.0)
+    posts_weight = _w('postsWeight', 0.5)
+    likes_weight = _w('likesWeight', 1.0)
+    comments_weight = _w('commentsWeight', 2.0)
+    reposts_weight = _w('repostsWeight', 3.0)
+    attention_weight = _w('attentionWeight', 0.5)
+
     conn = get_db_connection()
     cursor = conn.cursor()
-    
-    # Получаем всех пользователей, кроме текущего и тех, на кого уже подписаны
-    cursor.execute('''
-        SELECT followingId FROM Followers WHERE followerId = ?
-    ''', (current_user_id,))
-    following_ids = [row['followingId'] for row in cursor.fetchall()]
-    following_ids.append(current_user_id)
-    
-    placeholders = ','.join(['?'] * len(following_ids))
-    cursor.execute(f'''
-        SELECT id, username, email, bio, avatar, createdAt
-        FROM Users
-        WHERE id NOT IN ({placeholders})
-    ''', following_ids)
-    
+
+    # Кого уже фолловим (и себя) — исключаем
+    cursor.execute('SELECT followingId FROM Followers WHERE followerId = ?', (current_user_id,))
+    exclude_ids = [row['followingId'] for row in cursor.fetchall()]
+    exclude_ids.append(current_user_id)
+
+    placeholders = ','.join(['?'] * len(exclude_ids)) if exclude_ids else ''
+    if exclude_ids:
+        cursor.execute(f'''
+            SELECT id, username, email, bio, avatar, createdAt
+            FROM Users
+            WHERE id NOT IN ({placeholders})
+        ''', exclude_ids)
+    else:
+        cursor.execute('SELECT id, username, email, bio, avatar, createdAt FROM Users')
+
     candidates = [dict(row) for row in cursor.fetchall()]
-    
-    # Вычисляем score для каждого кандидата
-    recommendations = []
-    for candidate in candidates:
-        candidate_id = candidate['id']
-        
-        # Статистика кандидата
-        cursor.execute('SELECT COUNT(*) as count FROM Posts WHERE userId = ?', (candidate_id,))
-        posts_count = cursor.fetchone()['count']
-        
-        cursor.execute('SELECT COUNT(*) as count FROM Followers WHERE followingId = ?', (candidate_id,))
-        followers_count = cursor.fetchone()['count']
-        
-        cursor.execute('''
-            SELECT COUNT(*) as count
-            FROM Likes l
-            JOIN Posts p ON l.postId = p.id
-            WHERE p.userId = ?
-        ''', (candidate_id,))
-        likes_received = cursor.fetchone()['count']
-        
-        cursor.execute('''
-            SELECT COUNT(*) as count
-            FROM Comments c
-            JOIN Posts p ON c.postId = p.id
-            WHERE p.userId = ?
-        ''', (candidate_id,))
-        comments_received = cursor.fetchone()['count']
-        
-        cursor.execute('''
-            SELECT COUNT(*) as count
-            FROM Reposts r
-            JOIN Posts p ON r.originalPostId = p.id
-            WHERE p.userId = ?
-        ''', (candidate_id,))
-        reposts_received = cursor.fetchone()['count']
-        
-        cursor.execute('SELECT AVG(attentionSum) as avg FROM Posts WHERE userId = ?', (candidate_id,))
-        avg_attention = cursor.fetchone()['avg'] or 0
-        
-        # Общие подписки
-        cursor.execute('''
-            SELECT COUNT(*) as count
-            FROM Followers f1
-            JOIN Followers f2 ON f1.followingId = f2.followingId
-            WHERE f1.followerId = ? AND f2.followerId = ?
-        ''', (current_user_id, candidate_id))
-        common_following = cursor.fetchone()['count']
-        
-        # Весовые коэффициенты (можно настроить)
-        weights = {
-            'followersCount': 2,
-            'commonFollowing': 5,
-            'postsCount': 1,
-            'likesReceived': 1,
-            'commentsReceived': 2,
-            'repostsReceived': 3,
-            'averageAttention': 10
-        }
-        
+    if not candidates:
+        conn.close()
+        return jsonify({'success': True, 'users': []})
+
+    candidate_ids = [c['id'] for c in candidates]
+    cph = ','.join(['?'] * len(candidate_ids))
+
+    # followersCount
+    cursor.execute(f'''
+        SELECT followingId as userId, COUNT(*) as cnt
+        FROM Followers
+        WHERE followingId IN ({cph})
+        GROUP BY followingId
+    ''', candidate_ids)
+    followers_map = {row['userId']: row['cnt'] for row in cursor.fetchall()}
+
+    # postsCount + attention sums
+    cursor.execute(f'''
+        SELECT userId, COUNT(*) as postsCnt,
+               COALESCE(SUM(attentionSum), 0) as attSum,
+               COALESCE(SUM(viewsCount), 0) as viewSum
+        FROM Posts
+        WHERE userId IN ({cph})
+        GROUP BY userId
+    ''', candidate_ids)
+    posts_map = {}
+    att_map = {}
+    for row in cursor.fetchall():
+        posts_map[row['userId']] = row['postsCnt']
+        att_sum = row['attSum'] or 0
+        view_sum = row['viewSum'] or 0
+        att_map[row['userId']] = (att_sum / view_sum) if view_sum else 0
+
+    # likesReceived
+    cursor.execute(f'''
+        SELECT p.userId as userId, COUNT(*) as cnt
+        FROM Likes l
+        JOIN Posts p ON l.postId = p.id
+        WHERE p.userId IN ({cph})
+        GROUP BY p.userId
+    ''', candidate_ids)
+    likes_map = {row['userId']: row['cnt'] for row in cursor.fetchall()}
+
+    # commentsReceived
+    cursor.execute(f'''
+        SELECT p.userId as userId, COUNT(*) as cnt
+        FROM Comments c
+        JOIN Posts p ON c.postId = p.id
+        WHERE p.userId IN ({cph})
+        GROUP BY p.userId
+    ''', candidate_ids)
+    comments_map = {row['userId']: row['cnt'] for row in cursor.fetchall()}
+
+    # repostsReceived
+    cursor.execute(f'''
+        SELECT p.userId as userId, COUNT(*) as cnt
+        FROM Reposts r
+        JOIN Posts p ON r.originalPostId = p.id
+        WHERE p.userId IN ({cph})
+        GROUP BY p.userId
+    ''', candidate_ids)
+    reposts_map = {row['userId']: row['cnt'] for row in cursor.fetchall()}
+
+    # commonFollowing (сколько одинаковых подписок у current_user_id и кандидата)
+    cursor.execute(f'''
+        SELECT f2.followerId as userId, COUNT(*) as cnt
+        FROM Followers f1
+        JOIN Followers f2 ON f1.followingId = f2.followingId
+        WHERE f1.followerId = ? AND f2.followerId IN ({cph})
+        GROUP BY f2.followerId
+    ''', [current_user_id] + candidate_ids)
+    common_map = {row['userId']: row['cnt'] for row in cursor.fetchall()}
+
+    scored = []
+    for u in candidates:
+        uid = u['id']
+        followers_count = int(followers_map.get(uid, 0))
+        common_following = int(common_map.get(uid, 0))
+        posts_count = int(posts_map.get(uid, 0))
+        likes_received = int(likes_map.get(uid, 0))
+        comments_received = int(comments_map.get(uid, 0))
+        reposts_received = int(reposts_map.get(uid, 0))
+        average_attention_seconds = float(att_map.get(uid, 0))
+
         score = (
-            followers_count * weights['followersCount'] +
-            common_following * weights['commonFollowing'] +
-            posts_count * weights['postsCount'] +
-            likes_received * weights['likesReceived'] +
-            comments_received * weights['commentsReceived'] +
-            reposts_received * weights['repostsReceived'] +
-            avg_attention * weights['averageAttention']
+            followers_weight * followers_count +
+            common_following_weight * common_following +
+            posts_weight * posts_count +
+            likes_weight * likes_received +
+            comments_weight * comments_received +
+            reposts_weight * reposts_received +
+            attention_weight * average_attention_seconds
         )
-        
-        recommendations.append({
-            'user': candidate,
-            'score': score
-        })
-    
-    # Сортируем по score и берем топ-5
-    recommendations.sort(key=lambda x: x['score'], reverse=True)
-    top_recommendations = [r['user'] for r in recommendations[:5]]
-    
+
+        scored.append({'user': u, 'score': score})
+
+    scored.sort(key=lambda x: x['score'], reverse=True)
+    top = []
+    for item in scored[:10]:
+        user = item['user']
+        user['score'] = item['score']
+        top.append(user)
+
     conn.close()
-    
-    return jsonify({'success': True, 'users': top_recommendations})
+    return jsonify({'success': True, 'users': top})
 
 
 @app.route('/api/recommendations/posts', methods=['GET'])
@@ -1042,90 +1051,96 @@ def get_post_recommendations():
     if not current_user_id:
         return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
     
+    def _w(name: str, default: float) -> float:
+        try:
+            return float(request.args.get(name, default))
+        except (TypeError, ValueError):
+            return float(default)
+
+    likes_weight = _w('likesWeight', 1.0)
+    comments_weight = _w('commentsWeight', 2.0)
+    reposts_weight = _w('repostsWeight', 3.0)
+    attention_weight = _w('attentionWeight', 0.5)
+    freshness_weight = _w('freshnessWeight', 2.0)
+
     conn = get_db_connection()
     cursor = conn.cursor()
-    
-    # Получаем все посты, кроме своих
+
+    # Берём базовый набор постов (ограничим 200 для скорости на SQLite)
     cursor.execute('''
-        SELECT id, userId, content, createdAt, attentionSum, viewsCount
-        FROM Posts
-        WHERE userId != ?
-        ORDER BY createdAt DESC
-        LIMIT 50
-    ''', (current_user_id,))
-    
-    posts = [dict(row) for row in cursor.fetchall()]
-    
-    # Вычисляем score для каждого поста
-    recommendations = []
-    for post in posts:
-        post_id = post['id']
-        
-        # Лайки
-        cursor.execute('SELECT COUNT(*) as count FROM Likes WHERE postId = ?', (post_id,))
-        likes_count = cursor.fetchone()['count']
-        
-        # Комментарии
-        cursor.execute('SELECT COUNT(*) as count FROM Comments WHERE postId = ?', (post_id,))
-        comments_count = cursor.fetchone()['count']
-        
-        # Репосты
-        cursor.execute('SELECT COUNT(*) as count FROM Reposts WHERE originalPostId = ?', (post_id,))
-        reposts_count = cursor.fetchone()['count']
-        
-        # Среднее внимание
-        avg_attention = post.get('attentionSum', 0) or 0
-        
-        # Весовые коэффициенты
-        weights = {
-            'likes': 1,
-            'comments': 2,
-            'reposts': 3,
-            'averageAttention': 10
-        }
-        
-        score = (
-            likes_count * weights['likes'] +
-            comments_count * weights['comments'] +
-            reposts_count * weights['reposts'] +
-            avg_attention * weights['averageAttention']
+        SELECT p.id, p.userId, p.content, p.createdAt, p.attentionSum, p.viewsCount,
+               COALESCE(l.likes, 0) as likes,
+               COALESCE(c.comments, 0) as comments,
+               COALESCE(r.reposts, 0) as reposts
+        FROM Posts p
+        LEFT JOIN (SELECT postId, COUNT(*) as likes FROM Likes GROUP BY postId) l ON l.postId = p.id
+        LEFT JOIN (SELECT postId, COUNT(*) as comments FROM Comments GROUP BY postId) c ON c.postId = p.id
+        LEFT JOIN (SELECT originalPostId, COUNT(*) as reposts FROM Reposts GROUP BY originalPostId) r ON r.originalPostId = p.id
+        ORDER BY p.createdAt DESC
+        LIMIT 200
+    ''')
+
+    rows = cursor.fetchall()
+    if not rows:
+        conn.close()
+        return jsonify({'success': True, 'posts': []})
+
+    now = datetime.now()
+    scored = []
+    for row in rows:
+        post = dict(row)
+        views = int(post.get('viewsCount') or 0)
+        att_sum = float(post.get('attentionSum') or 0)
+        average_attention_seconds = (att_sum / views) if views else 0.0
+
+        try:
+            created = datetime.fromisoformat(post['createdAt'])
+        except Exception:
+            created = now
+        hours_since_post = max(0.0, (now - created).total_seconds() / 3600.0)
+
+        base_score = (
+            likes_weight * float(post.get('likes') or 0) +
+            comments_weight * float(post.get('comments') or 0) +
+            reposts_weight * float(post.get('reposts') or 0) +
+            attention_weight * float(average_attention_seconds)
         )
-        
-        recommendations.append({
-            'post': post,
-            'score': score
-        })
-    
-    # Сортируем по score и берем топ-10
-    recommendations.sort(key=lambda x: x['score'], reverse=True)
-    top_posts = [r['post'] for r in recommendations[:10]]
-    
-    # Добавляем информацию о файлах, лайках, комментариях и репостах
+        freshness_score = freshness_weight * (1.0 / (1.0 + hours_since_post))
+        score = base_score + freshness_score
+
+        post['averageAttentionSeconds'] = average_attention_seconds
+        post['hoursSincePost'] = hours_since_post
+        scored.append({'post': post, 'score': score})
+
+    scored.sort(key=lambda x: x['score'], reverse=True)
+    top_posts = [item['post'] for item in scored[:20]]
+
+    # Добавляем информацию о файлах + liked/reposted для текущего пользователя
     for post in top_posts:
-        cursor.execute('''
-            SELECT id, fileName, filePath, fileType
-            FROM Files
-            WHERE postId = ?
-        ''', (post['id'],))
-        post['files'] = [dict(row) for row in cursor.fetchall()]
-        
-        cursor.execute('SELECT COUNT(*) as count FROM Likes WHERE postId = ?', (post['id'],))
-        post['likesCount'] = cursor.fetchone()['count']
-        
-        cursor.execute('SELECT COUNT(*) as count FROM Comments WHERE postId = ?', (post['id'],))
-        post['commentsCount'] = cursor.fetchone()['count']
-        
-        cursor.execute('SELECT COUNT(*) as count FROM Reposts WHERE originalPostId = ?', (post['id'],))
-        post['repostsCount'] = cursor.fetchone()['count']
-        
-        cursor.execute('SELECT id FROM Likes WHERE postId = ? AND userId = ?', (post['id'], current_user_id))
+        post_id = post['id']
+
+        cursor.execute('SELECT id, fileName, filePath, fileType FROM Files WHERE postId = ?', (post_id,))
+        post['files'] = [dict(r) for r in cursor.fetchall()]
+
+        post['likesCount'] = int(post.get('likes') or 0)
+        post['commentsCount'] = int(post.get('comments') or 0)
+        post['repostsCount'] = int(post.get('reposts') or 0)
+
+        cursor.execute('SELECT 1 FROM Likes WHERE postId = ? AND userId = ? LIMIT 1', (post_id, current_user_id))
         post['liked'] = cursor.fetchone() is not None
-        
-        cursor.execute('SELECT id FROM Reposts WHERE originalPostId = ? AND userId = ?', (post['id'], current_user_id))
+
+        cursor.execute('SELECT 1 FROM Reposts WHERE originalPostId = ? AND userId = ? LIMIT 1', (post_id, current_user_id))
         post['reposted'] = cursor.fetchone() is not None
-    
+
+        # для дебага/отладки — можно убрать на фронте, если не нужно
+        post['score'] = next((x['score'] for x in scored if x['post']['id'] == post_id), None)
+
+        # Убираем вспомогательные поля likes/comments/reposts (чтобы фронту было проще)
+        post.pop('likes', None)
+        post.pop('comments', None)
+        post.pop('reposts', None)
+
     conn.close()
-    
     return jsonify({'success': True, 'posts': top_posts})
 
 
