@@ -29,6 +29,88 @@ const feedSubtitles = [
   'Что происходит?'
 ];
 
+// ========= Recommendation weights (frontend-controlled) =========
+
+const REC_WEIGHTS_STORAGE_KEY = 'recommendationWeights';
+
+const DEFAULT_RECOMMENDATION_WEIGHTS = {
+  followersWeight: 1.0,
+  commonFollowingWeight: 2.0,
+  postsWeight: 0.5,
+  likesWeight: 1.0,
+  commentsWeight: 2.0,
+  repostsWeight: 3.0,
+  attentionWeight: 0.5,
+  freshnessWeight: 2.0
+};
+
+let recommendationWeights = loadRecommendationWeights();
+
+function loadRecommendationWeights() {
+  try {
+    const raw = localStorage.getItem(REC_WEIGHTS_STORAGE_KEY);
+    if (!raw) return { ...DEFAULT_RECOMMENDATION_WEIGHTS };
+    const parsed = JSON.parse(raw);
+    return { ...DEFAULT_RECOMMENDATION_WEIGHTS, ...(parsed || {}) };
+  } catch {
+    return { ...DEFAULT_RECOMMENDATION_WEIGHTS };
+  }
+}
+
+function saveRecommendationWeights() {
+  try {
+    localStorage.setItem(REC_WEIGHTS_STORAGE_KEY, JSON.stringify(recommendationWeights));
+  } catch {
+    // ignore
+  }
+}
+
+function getRecommendationWeights() {
+  return { ...recommendationWeights };
+}
+
+function setRecommendationWeight(key, value) {
+  const num = Number(value);
+  recommendationWeights[key] = Number.isFinite(num) ? num : DEFAULT_RECOMMENDATION_WEIGHTS[key];
+  saveRecommendationWeights();
+}
+
+function setupRecommendationSettingsPanel(onWeightsChange) {
+  const toggleBtn = document.getElementById('recSettingsToggle');
+  const panel = document.getElementById('recSettingsPanel');
+  if (!toggleBtn || !panel) return;
+
+  // Collapsed by default
+  panel.style.display = 'none';
+
+  toggleBtn.addEventListener('click', () => {
+    panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+  });
+
+  const bindSlider = (key) => {
+    const input = document.getElementById(`w_${key}`);
+    const val = document.getElementById(`w_${key}_val`);
+    if (!input || !val) return;
+
+    // init from storage
+    input.value = String(getRecommendationWeights()[key] ?? DEFAULT_RECOMMENDATION_WEIGHTS[key]);
+    val.textContent = String(input.value);
+
+    let debounceTimer;
+    input.addEventListener('input', () => {
+      val.textContent = String(input.value);
+      setRecommendationWeight(key, input.value);
+
+      window.clearTimeout(debounceTimer);
+      debounceTimer = window.setTimeout(() => {
+        onWeightsChange && onWeightsChange(getRecommendationWeights());
+      }, 200);
+    });
+  };
+
+  Object.keys(DEFAULT_RECOMMENDATION_WEIGHTS).forEach(bindSlider);
+}
+
 /**
  * Получает случайную фразу для заголовка ленты
  */
@@ -514,6 +596,11 @@ const App = {
     this.setupLogoutButton();
     this.setupLanguageSelector();
     updateFeedSubtitle();
+    setupRecommendationSettingsPanel(() => {
+      if (this.refreshCurrentPage) {
+        this.refreshCurrentPage();
+      }
+    });
     
     if (I18n.apply) {
       I18n.apply(document);
@@ -561,11 +648,12 @@ const App = {
 
     // Начальный рендер
     this.refreshCurrentPage = async () => {
-      await this.renderFeedPosts(currentUser.id);
+      const weights = getRecommendationWeights();
+      await this.renderFeedPosts(currentUser.id, weights);
       if (searchInput) {
         await this.renderSearchResults(searchInput.value, currentUser.id);
       }
-      await this.renderRecommendations(currentUser.id);
+      await this.renderRecommendations(currentUser.id, weights);
     };
 
     await this.refreshCurrentPage();
@@ -574,13 +662,14 @@ const App = {
   /**
    * Рендерит посты в ленте
    */
-  async renderFeedPosts(currentUserId) {
+  async renderFeedPosts(currentUserId, weights = null) {
     const container = document.getElementById('postsContainer');
     if (!container) return;
     container.innerHTML = '<p class="muted">Загрузка...</p>';
 
     try {
-      const response = await window.API.Post.getPosts();
+      // Лента = рекомендации постов (весовая формула + свежесть)
+      const response = await window.API.Recommendations.getPosts(weights || getRecommendationWeights());
       if (response.success) {
         container.innerHTML = '';
         if (response.posts.length === 0) {
@@ -635,13 +724,13 @@ const App = {
   /**
    * Рендерит рекомендации пользователей
    */
-  async renderRecommendations(currentUserId) {
+  async renderRecommendations(currentUserId, weights = null) {
     const container = document.getElementById('recommendationsContainer');
     if (!container) return;
     container.innerHTML = '<p class="muted">Загрузка...</p>';
 
     try {
-      const response = await window.API.Recommendations.getUsers();
+      const response = await window.API.Recommendations.getUsers(weights || getRecommendationWeights());
       if (response.success) {
         container.innerHTML = '';
         
@@ -650,18 +739,15 @@ const App = {
           return;
         }
 
-        // Получаем информацию о подписках
+        // Получаем информацию о подписках (одним запросом)
         const followingMap = new Map();
-        for (const user of response.users) {
-          // Проверяем, подписан ли текущий пользователь
-          try {
-            const followersResponse = await window.API.User.getFollowing(currentUserId);
-            if (followersResponse.success) {
-              followersResponse.users.forEach(u => followingMap.set(u.id, true));
-            }
-          } catch (error) {
-            // Игнорируем ошибку
+        try {
+          const followersResponse = await window.API.User.getFollowing(currentUserId);
+          if (followersResponse.success) {
+            followersResponse.users.forEach(u => followingMap.set(u.id, true));
           }
+        } catch (error) {
+          // Игнорируем ошибку
         }
 
         response.users.forEach(u => {
