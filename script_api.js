@@ -1,9 +1,5 @@
-/**
- * Основной модуль фронтенда, работающий с REST API бэкенда.
- * Заменяет работу с LocalStorage на запросы к серверу.
- */
+// Frontend module talking to REST API (replaces LocalStorage).
 
-// Безопасно получаем объект переводов
 const I18n = window.I18n || {
   t: (k) => k,
   getLanguage: () => 'cs',
@@ -11,13 +7,8 @@ const I18n = window.I18n || {
   apply: () => {}
 };
 
-// Текущий пользователь (кэшируется)
 let currentUser = null;
-
-// Кэш пользователей для быстрого доступа
 const usersCache = new Map();
-
-// ========= Recommendation weights (frontend-controlled) =========
 
 const REC_WEIGHTS_STORAGE_KEY = 'recommendationWeights';
 
@@ -33,6 +24,12 @@ const DEFAULT_RECOMMENDATION_WEIGHTS = {
 };
 
 let recommendationWeights = loadRecommendationWeights();
+
+const MOOD_EMOJI = { happy: '🙂', sad: '😢', inspired: '🔥', thinking: '🤔', dark: '💀' };
+function getMoodEmoji(mood) {
+  const m = (mood || 'happy').toLowerCase();
+  return MOOD_EMOJI[m] || MOOD_EMOJI.happy;
+}
 
 function loadRecommendationWeights() {
   try {
@@ -64,23 +61,36 @@ function setRecommendationWeight(key, value) {
 }
 
 function setupRecommendationSettingsPanel(onWeightsChange) {
-  const toggleBtn = document.getElementById('recSettingsToggle');
   const panel = document.getElementById('recSettingsPanel');
-  if (!toggleBtn || !panel) return;
+  if (!panel) return;
 
-  // Collapsed by default
-  panel.style.display = 'none';
+  function applyWeightsToSliders() {
+    const weights = getRecommendationWeights();
+    Object.keys(DEFAULT_RECOMMENDATION_WEIGHTS).forEach(key => {
+      const input = document.getElementById(`w_${key}`);
+      const val = document.getElementById(`w_${key}_val`);
+      if (input && val) {
+        const v = weights[key] ?? DEFAULT_RECOMMENDATION_WEIGHTS[key];
+        input.value = String(v);
+        val.textContent = String(v);
+      }
+    });
+  }
 
-  toggleBtn.addEventListener('click', () => {
-    panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-  });
+  const resetBtn = document.getElementById('recSettingsReset');
+  if (resetBtn) {
+    resetBtn.addEventListener('click', () => {
+      recommendationWeights = { ...DEFAULT_RECOMMENDATION_WEIGHTS };
+      saveRecommendationWeights();
+      applyWeightsToSliders();
+      if (onWeightsChange) onWeightsChange(getRecommendationWeights());
+    });
+  }
 
   const bindSlider = (key) => {
     const input = document.getElementById(`w_${key}`);
     const val = document.getElementById(`w_${key}_val`);
     if (!input || !val) return;
-
-    // init from storage
     input.value = String(getRecommendationWeights()[key] ?? DEFAULT_RECOMMENDATION_WEIGHTS[key]);
     val.textContent = String(input.value);
 
@@ -99,9 +109,6 @@ function setupRecommendationSettingsPanel(onWeightsChange) {
   Object.keys(DEFAULT_RECOMMENDATION_WEIGHTS).forEach(bindSlider);
 }
 
-/**
- * Получает случайную фразу для заголовка ленты
- */
 function getRandomFeedSubtitle() {
   try {
     if (window.TextDB && I18n && typeof I18n.getLanguage === 'function') {
@@ -118,9 +125,6 @@ function getRandomFeedSubtitle() {
   return 'Лента постов';
 }
 
-/**
- * Обновляет заголовок ленты случайной фразой из texts-db.js (элемент #feedSubtitlePhrase)
- */
 function updateFeedSubtitle() {
   const el = document.getElementById('feedSubtitlePhrase');
   if (el) {
@@ -128,9 +132,23 @@ function updateFeedSubtitle() {
   }
 }
 
-/**
- * Получает текущего пользователя из API
- */
+function setupCollapsibleCards() {
+  const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
+  document.querySelectorAll('.card-collapse-btn').forEach(btn => {
+    const targetId = btn.getAttribute('data-collapse-target');
+    const body = targetId ? document.getElementById(targetId) : null;
+    if (!body) return;
+    if (isMobile) {
+      body.classList.add('collapsed');
+      btn.setAttribute('aria-expanded', 'false');
+    }
+    btn.addEventListener('click', () => {
+      const collapsed = body.classList.toggle('collapsed');
+      btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+    });
+  });
+}
+
 async function getCurrentUser() {
   if (currentUser) return currentUser;
   
@@ -146,9 +164,6 @@ async function getCurrentUser() {
   return null;
 }
 
-/**
- * Получает пользователя по ID (с кэшированием)
- */
 async function getUserById(userId) {
   if (usersCache.has(userId)) {
     return usersCache.get(userId);
@@ -166,9 +181,6 @@ async function getUserById(userId) {
   return null;
 }
 
-/**
- * Форматирует дату для отображения
- */
 function formatDate(iso) {
   try {
     const d = new Date(iso);
@@ -178,9 +190,6 @@ function formatDate(iso) {
   }
 }
 
-/**
- * Экранирует HTML для безопасности
- */
 function escapeHtml(text) {
   if (typeof text !== 'string') return '';
   const map = {
@@ -193,9 +202,6 @@ function escapeHtml(text) {
   return text.replace(/[&<>"']/g, m => map[m]);
 }
 
-/**
- * Генерирует HTML для аватара пользователя
- */
 function userAvatarHTML(user) {
   if (user.avatar) {
     const cleanPath = user.avatar.replace(/^uploads[\/\\]/, '').replace(/\\/g, '/');
@@ -208,7 +214,6 @@ function userAvatarHTML(user) {
   return escapeHtml(letter);
 }
 
-/** Базовый URL сервера для файлов (тот же хост, что и страница, или localhost) */
 function getServerOrigin() {
   if (typeof window !== 'undefined' && window.location && window.location.origin && window.location.origin !== 'file://') {
     return window.location.origin;
@@ -216,9 +221,6 @@ function getServerOrigin() {
   return 'http://localhost:5000';
 }
 
-/**
- * Получает URL файла для отображения
- */
 function getFileUrl(filePath) {
   if (!filePath) return null;
   if (filePath.startsWith('http')) return filePath;
@@ -226,9 +228,10 @@ function getFileUrl(filePath) {
   return `${getServerOrigin()}/api/files/${cleanPath}`;
 }
 
-/**
- * Отрисовывает пост с комментариями и репостами
- */
+function isImageFile(file) {
+  return file && file.type && file.type.startsWith('image/');
+}
+
 async function renderPost(post, currentUserId) {
   const author = await getUserById(post.userId);
   const reactionCounts = post.reactionCounts || { heart: 0, fire: 0, laugh: 0, wow: 0 };
@@ -246,7 +249,6 @@ async function renderPost(post, currentUserId) {
   const deleteText = I18n.t('delete_post');
   const iconsBase = 'Icons';
 
-  // Обработка файлов
   let attachmentHtml = '';
   if (post.files && post.files.length > 0) {
     const file = post.files[0];
@@ -284,10 +286,16 @@ async function renderPost(post, currentUserId) {
     </div>
   `).join('');
 
+  const moodEmoji = getMoodEmoji(post.mood);
+  const storyScore = author && (author.storyScore != null) ? author.storyScore : 0;
+
   div.innerHTML = `
+    ${post.isRepost ? `<div class="post-repost-header muted" style="font-size: 0.85rem; margin-bottom: 4px;">↗ Reposted from <a href="user.html?id=${author ? author.id : ''}">@${author ? escapeHtml(author.username) : '?'}</a></div>` : ''}
     <div class="post-header">
       <div>
         <strong><a href="user.html?id=${author ? author.id : ''}">${author ? escapeHtml(author.username) : 'Неизвестно'}</a></strong>
+        <span class="post-mood" title="mood">${moodEmoji}</span>
+        ${storyScore > 0 ? `<span class="post-story-score muted" style="font-size: 0.85rem;"> · Score ${storyScore}</span>` : ''}
         <div class="post-meta">${formatDate(post.createdAt)}</div>
       </div>
       ${canDelete ? `<button class="link-button danger" data-action="delete">${deleteText}</button>` : ''}
@@ -322,7 +330,6 @@ async function renderPost(post, currentUserId) {
     </div>
   `;
 
-  // Обновление счётчиков реакций в DOM
   function updateReactionCounts(counts, current) {
     ['heart', 'fire', 'laugh', 'wow'].forEach(key => {
       const span = div.querySelector(`.reaction-count[data-reaction="${key}"]`);
@@ -349,7 +356,6 @@ async function renderPost(post, currentUserId) {
     });
   });
 
-  // Обработчик комментариев
   const commentBtn = div.querySelector('[data-action="comment"]');
   const commentsSection = div.querySelector(`#comments-${post.id}`);
   commentBtn.addEventListener('click', async () => {
@@ -361,7 +367,6 @@ async function renderPost(post, currentUserId) {
     }
   });
 
-  // Обработчик отправки комментария
   const submitCommentBtn = div.querySelector('[data-action="submit-comment"]');
   const commentInput = div.querySelector(`#comment-input-${post.id}`);
   const commentCountEl = div.querySelector('.post-action-count[data-action="comment"]');
@@ -381,27 +386,22 @@ async function renderPost(post, currentUserId) {
     }
   });
 
-  // Обработчик репоста
   const repostBtn = div.querySelector('[data-action="repost"]');
   const repostCountEl = div.querySelector('.post-action-count[data-action="repost"]');
   repostBtn.addEventListener('click', async () => {
-    if (reposted) {
-      alert('Вы уже репостили этот пост');
-      return;
-    }
-    
     try {
       const response = await window.API.Post.createRepost(post.id);
       if (response.success) {
-        repostBtn.setAttribute('data-reposted', 'true');
-        if (repostCountEl) repostCountEl.textContent = (parseInt(repostCountEl.textContent, 10) || 0) + 1;
+        const nowReposted = response.reposted === true;
+        repostBtn.setAttribute('data-reposted', nowReposted ? 'true' : '');
+        repostBtn.classList.toggle('reposted', nowReposted);
+        if (repostCountEl) repostCountEl.textContent = response.repostsCount != null ? response.repostsCount : (parseInt(repostCountEl.textContent, 10) || 0) + (nowReposted ? 1 : -1);
       }
     } catch (error) {
       alert('Ошибка: ' + error.message);
     }
   });
 
-  // Обработчик удаления
   const deleteBtn = div.querySelector('[data-action="delete"]');
   if (deleteBtn) {
     deleteBtn.addEventListener('click', async () => {
@@ -424,9 +424,6 @@ async function renderPost(post, currentUserId) {
   return div;
 }
 
-/**
- * Загружает и отображает комментарии к посту
- */
 async function loadComments(postId) {
   try {
     const response = await window.API.Post.getComments(postId);
@@ -442,8 +439,23 @@ async function loadComments(postId) {
       }
       
       response.comments.forEach(comment => {
+        const counts = comment.reactionCounts || { heart: 0, fire: 0, laugh: 0, wow: 0 };
+        const curReaction = comment.currentUserReaction || null;
+        const reactionRow = [
+          { key: 'heart', emoji: '❤️' },
+          { key: 'fire', emoji: '🔥' },
+          { key: 'laugh', emoji: '😂' },
+          { key: 'wow', emoji: '😮' }
+        ].map(r => `
+          <span style="display: inline-flex; align-items: center; gap: 2px;">
+            <button type="button" class="comment-reaction-btn" data-comment-id="${comment.id}" data-reaction="${r.key}" ${curReaction === r.key ? 'data-active="1"' : ''} title="${r.key}">${r.emoji}</button>
+            <span class="comment-reaction-count" data-reaction="${r.key}">${counts[r.key] || 0}</span>
+          </span>
+        `).join('');
+
         const commentDiv = document.createElement('div');
         commentDiv.className = 'comment-item';
+        commentDiv.dataset.commentId = comment.id;
         commentDiv.style.cssText = 'padding: 8px; margin-bottom: 8px; background: #f9fafb; border-radius: 6px;';
         commentDiv.innerHTML = `
           <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
@@ -451,8 +463,34 @@ async function loadComments(postId) {
             <span class="muted" style="font-size: 0.75rem;">${formatDate(comment.createdAt)}</span>
           </div>
           <div style="font-size: 0.9rem;">${escapeHtml(comment.content)}</div>
+          <div class="comment-reactions" style="display: flex; align-items: center; gap: 6px; margin-top: 6px; flex-wrap: wrap;">
+            ${reactionRow}
+          </div>
         `;
         commentsList.appendChild(commentDiv);
+
+        commentDiv.querySelectorAll('.comment-reaction-btn').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const cid = btn.dataset.commentId;
+            const reactionType = btn.dataset.reaction;
+            try {
+              const resp = await window.API.Post.toggleCommentLike(cid, reactionType);
+              if (resp.success) {
+                ['heart', 'fire', 'laugh', 'wow'].forEach(key => {
+                  const span = commentDiv.querySelector(`.comment-reaction-count[data-reaction="${key}"]`);
+                  if (span) span.textContent = (resp.reactionCounts && resp.reactionCounts[key]) || 0;
+                });
+                commentDiv.querySelectorAll('.comment-reaction-btn').forEach(b => {
+                  const k = b.dataset.reaction;
+                  b.classList.toggle('reaction-active', resp.currentUserReaction === k);
+                  b.setAttribute('data-active', resp.currentUserReaction === k ? '1' : '0');
+                });
+              }
+            } catch (err) {
+              console.error(err);
+            }
+          });
+        });
       });
     }
   } catch (error) {
@@ -460,12 +498,7 @@ async function loadComments(postId) {
   }
 }
 
-// ========= Страницы =========
-
 const App = {
-  /**
-   * Проверяет авторизацию пользователя
-   */
   async requireAuth() {
     try {
       const user = await getCurrentUser();
@@ -480,9 +513,6 @@ const App = {
     }
   },
 
-  /**
-   * Настройка кнопки выхода
-   */
   setupLogoutButton() {
     const btn = document.getElementById('logoutBtn');
     if (btn) {
@@ -500,9 +530,6 @@ const App = {
     }
   },
 
-  /**
-   * Настройка языкового переключателя
-   */
   setupLanguageSelector() {
     const select = document.getElementById('languageSelect');
     if (!select) return;
@@ -516,9 +543,6 @@ const App = {
     });
   },
 
-  /**
-   * Страница index.html - авторизация
-   */
   async setupAuthPage() {
     this.setupLanguageSelector();
     if (I18n.apply) {
@@ -593,14 +617,12 @@ const App = {
       });
     }
 
-    // Если уже залогинен — сразу в ленту
     try {
       const user = await getCurrentUser();
       if (user) {
         window.location.href = 'feed.html';
       }
     } catch (error) {
-      // Игнорируем ошибку, пользователь не залогинен
     }
   },
 
@@ -653,9 +675,6 @@ const App = {
     }
   },
 
-  /**
-   * Страница feed.html - лента постов
-   */
   async renderFeedPage() {
     const authOk = await this.requireAuth();
     if (!authOk) return;
@@ -679,7 +698,6 @@ const App = {
 
     await this.renderMiniProfile(currentUser);
 
-    // Сетевая статистика и последние пользователи
     try {
       const statsRes = await window.API.Stats.getNetworkStats();
       if (statsRes.success && statsRes.stats) {
@@ -712,28 +730,38 @@ const App = {
           container.appendChild(div);
         });
       } else if (container) {
-        container.innerHTML = '<p class="muted">No users yet</p>';
+        container.innerHTML = '<p class="muted">' + (I18n.t('no_users_yet') || 'No users yet') + '</p>';
       }
     } catch (e) { /* ignore */ }
+
+    setupCollapsibleCards();
 
     const postForm = document.getElementById('postForm');
     const postContent = document.getElementById('postContent');
     const postFile = document.getElementById('postFile');
     const postFileStatus = document.getElementById('postFileStatus');
+    let postImageBlob = null;
 
     if (postForm && postContent) {
       postForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const content = postContent.value.trim();
-        const file = postFile && postFile.files ? postFile.files[0] : null;
+        const moodInput = document.querySelector('input[name="postMood"]:checked');
+        const mood = moodInput ? moodInput.value : 'happy';
+        const rawFile = postFile && postFile.files ? postFile.files[0] : null;
+        const file = postImageBlob
+          ? new File([postImageBlob], (rawFile && rawFile.name) || 'image.jpg', { type: postImageBlob.type })
+          : rawFile;
 
         if (!content && !file) return;
 
         try {
-          const response = await window.API.Post.createPost(content, file);
+          const response = await window.API.Post.createPost(content, file, mood);
           if (response.success) {
             postContent.value = '';
             if (postFile) postFile.value = '';
+            postImageBlob = null;
+            if (postFileStatus) postFileStatus.textContent = '';
             await this.refreshCurrentPage();
           }
         } catch (error) {
@@ -742,19 +770,30 @@ const App = {
       });
     }
 
-    // Индикация прикрепленного файла
     if (postFile && postFileStatus) {
-      postFile.addEventListener('change', () => {
-        if (postFile.files && postFile.files[0]) {
-          const name = postFile.files[0].name;
-          postFileStatus.textContent = `Фото прикреплено: ${name}`;
-        } else {
+      postFile.addEventListener('change', async () => {
+        if (!postFile.files || !postFile.files[0]) {
+          postImageBlob = null;
           postFileStatus.textContent = '';
+          return;
+        }
+        const file = postFile.files[0];
+        if (file.type && file.type.startsWith('image/') && window.openImageCrop) {
+          try {
+            const cropped = await window.openImageCrop(file);
+            postImageBlob = cropped instanceof Blob ? cropped : null;
+            postFileStatus.textContent = (I18n.t('attachment_label') || 'Фото') + ': ' + (cropped instanceof File ? cropped.name : file.name);
+          } catch (err) {
+            postImageBlob = file;
+            postFileStatus.textContent = file.name;
+          }
+        } else {
+          postImageBlob = null;
+          postFileStatus.textContent = file.name;
         }
       });
     }
 
-    // Поиск пользователей
     const searchInput = document.getElementById('searchInput');
     if (searchInput) {
       let searchTimeout;
@@ -766,7 +805,6 @@ const App = {
       });
     }
 
-    // Начальный рендер
     this.refreshCurrentPage = async () => {
       const weights = getRecommendationWeights();
       await this.renderFeedPosts(currentUser.id, weights);
@@ -788,7 +826,6 @@ const App = {
     container.innerHTML = '<p class="muted">Загрузка...</p>';
 
     try {
-      // Лента = рекомендации постов (весовая формула + свежесть)
       const response = await window.API.Recommendations.getPosts(weights || getRecommendationWeights());
       if (response.success) {
         container.innerHTML = '';
@@ -841,9 +878,6 @@ const App = {
     }
   },
 
-  /**
-   * Рендерит рекомендации пользователей
-   */
   async renderRecommendations(currentUserId, weights = null) {
     const container = document.getElementById('recommendationsContainer');
     if (!container) return;
@@ -859,7 +893,6 @@ const App = {
           return;
         }
 
-        // Получаем информацию о подписках (одним запросом)
         const followingMap = new Map();
         try {
           const followersResponse = await window.API.User.getFollowing(currentUserId);
@@ -867,7 +900,6 @@ const App = {
             followersResponse.users.forEach(u => followingMap.set(u.id, true));
           }
         } catch (error) {
-          // Игнорируем ошибку
         }
 
         response.users.forEach(u => {
@@ -905,9 +937,6 @@ const App = {
     }
   },
 
-  /**
-   * Страница profile.html - профиль текущего пользователя
-   */
   async renderProfilePage() {
     const authOk = await this.requireAuth();
     if (!authOk) return;
@@ -941,7 +970,6 @@ const App = {
       });
     }
 
-    // Загружаем статистику
     try {
       const statsResponse = await window.API.User.getUserStats(currentUser.id);
       if (statsResponse.success) {
@@ -949,16 +977,17 @@ const App = {
         const postsCountEl = document.getElementById('postsCount');
         const followersCountEl = document.getElementById('followersCount');
         const followingCountEl = document.getElementById('followingCount');
+        const storyScoreEl = document.getElementById('storyScoreCount');
 
         if (postsCountEl) postsCountEl.textContent = stats.postsCount;
         if (followersCountEl) followersCountEl.textContent = stats.followersCount;
         if (followingCountEl) followingCountEl.textContent = stats.followingCount;
+        if (storyScoreEl) storyScoreEl.textContent = stats.storyScore != null ? stats.storyScore : 0;
       }
     } catch (error) {
       console.error('Ошибка загрузки статистики:', error);
     }
 
-    // Редактирование био
     const bioForm = document.getElementById('bioForm');
     const bioInput = document.getElementById('bioInput');
     if (bioInput) bioInput.value = currentUser.bio || '';
@@ -979,15 +1008,15 @@ const App = {
       });
     }
 
-    // Загрузка фото профиля
     const avatarInput = document.getElementById('avatarInput');
     if (avatarInput) {
       avatarInput.addEventListener('change', async () => {
         const file = avatarInput.files[0];
         if (!file) return;
-        
+        const toUpload = window.openImageCrop ? await window.openImageCrop(file) : file;
+        const fileToSend = toUpload instanceof Blob && !(toUpload instanceof File) ? new File([toUpload], file.name, { type: toUpload.type }) : toUpload;
         try {
-          const response = await window.API.User.updateProfile(null, file);
+          const response = await window.API.User.updateProfile(null, fileToSend);
           if (response.success && response.user) {
             currentUser.avatar = response.user.avatar;
             if (avatarEl) {
@@ -1000,23 +1029,26 @@ const App = {
         } catch (error) {
           alert('Ошибка: ' + error.message);
         }
+        avatarInput.value = '';
       });
     }
 
-    // Загружаем посты пользователя
     const userPostsContainer = document.getElementById('userPostsContainer');
     if (userPostsContainer) {
       userPostsContainer.innerHTML = '<p class="muted">Загрузка...</p>';
       try {
         const postsResponse = await window.API.Post.getPosts(currentUser.id);
-        if (postsResponse.success) {
-          userPostsContainer.innerHTML = '';
-          if (postsResponse.posts.length === 0) {
-            userPostsContainer.innerHTML = '<p class="muted">Пока нет постов</p>';
-          } else {
-            for (const post of postsResponse.posts) {
+        const posts = Array.isArray(postsResponse?.posts) ? postsResponse.posts : [];
+        userPostsContainer.innerHTML = '';
+        if (posts.length === 0) {
+          userPostsContainer.innerHTML = '<p class="muted">Пока нет постов</p>';
+        } else {
+          for (const post of posts) {
+            try {
               const el = await renderPost(post, currentUser.id);
               userPostsContainer.appendChild(el);
+            } catch (err) {
+              console.error('Ошибка отрисовки поста:', post?.id, err);
             }
           }
         }
@@ -1026,7 +1058,6 @@ const App = {
     }
 
     this.refreshCurrentPage = async () => {
-      // Обновляем статистику
       try {
         const statsResponse = await window.API.User.getUserStats(currentUser.id);
         if (statsResponse.success) {
@@ -1043,19 +1074,21 @@ const App = {
         console.error('Ошибка обновления статистики:', error);
       }
 
-      // Обновляем посты
       if (userPostsContainer) {
         userPostsContainer.innerHTML = '<p class="muted">Загрузка...</p>';
         try {
           const postsResponse = await window.API.Post.getPosts(currentUser.id);
-          if (postsResponse.success) {
-            userPostsContainer.innerHTML = '';
-            if (postsResponse.posts.length === 0) {
-              userPostsContainer.innerHTML = '<p class="muted">Пока нет постов</p>';
-            } else {
-              for (const post of postsResponse.posts) {
+          const posts = Array.isArray(postsResponse?.posts) ? postsResponse.posts : [];
+          userPostsContainer.innerHTML = '';
+          if (posts.length === 0) {
+            userPostsContainer.innerHTML = '<p class="muted">Пока нет постов</p>';
+          } else {
+            for (const post of posts) {
+              try {
                 const el = await renderPost(post, currentUser.id);
                 userPostsContainer.appendChild(el);
+              } catch (err) {
+                console.error('Ошибка отрисовки поста:', post?.id, err);
               }
             }
           }
@@ -1065,7 +1098,6 @@ const App = {
       }
     };
 
-    // Переход к спискам подписчиков / подписок
     const followersLink = document.getElementById('followersLink');
     const followingLink = document.getElementById('followingLink');
     if (followersLink) {
@@ -1076,9 +1108,6 @@ const App = {
     }
   },
 
-  /**
-   * Страница user.html - просмотр другого пользователя
-   */
   async renderUserPage() {
     const authOk = await this.requireAuth();
     if (!authOk) return;
@@ -1119,7 +1148,6 @@ const App = {
     if (usernameEl) usernameEl.textContent = viewedUser.username;
     if (bioEl) bioEl.textContent = viewedUser.bio || I18n.t('bio_empty');
 
-    // Загружаем статистику
     try {
       const statsResponse = await window.API.User.getUserStats(viewedUserId);
       if (statsResponse.success) {
@@ -1127,19 +1155,19 @@ const App = {
         const postsCountEl = document.getElementById('viewPostsCount');
         const followersCountEl = document.getElementById('viewFollowersCount');
         const followingCountEl = document.getElementById('viewFollowingCount');
+        const viewStoryScoreEl = document.getElementById('viewStoryScoreCount');
 
         if (postsCountEl) postsCountEl.textContent = stats.postsCount;
         if (followersCountEl) followersCountEl.textContent = stats.followersCount;
         if (followingCountEl) followingCountEl.textContent = stats.followingCount;
+        if (viewStoryScoreEl) viewStoryScoreEl.textContent = stats.storyScore != null ? stats.storyScore : 0;
       }
     } catch (error) {
       console.error('Ошибка загрузки статистики:', error);
     }
 
-    // Кнопка подписки
     const followBtn = document.getElementById('followBtn');
     if (followBtn && String(currentUser.id) !== String(viewedUserId)) {
-      // Проверяем, подписан ли уже
       try {
         const followingResponse = await window.API.User.getFollowing(currentUser.id);
         const isFollowing = followingResponse.success && 
@@ -1153,7 +1181,6 @@ const App = {
             if (response.success) {
               followBtn.textContent = response.following ? I18n.t('unfollow') : I18n.t('follow');
               
-              // Обновляем счетчик подписчиков
               const statsResponse = await window.API.User.getUserStats(viewedUserId);
               if (statsResponse.success) {
                 const followersCountEl = document.getElementById('viewFollowersCount');
@@ -1173,7 +1200,6 @@ const App = {
       followBtn.style.display = 'none';
     }
 
-    // Загружаем посты пользователя
     const postsContainer = document.getElementById('viewUserPostsContainer');
     if (postsContainer) {
       postsContainer.innerHTML = '<p class="muted">Загрузка...</p>';
@@ -1195,7 +1221,6 @@ const App = {
       }
     }
 
-    // Переход к спискам подписчиков / подписок
     const viewFollowersLink = document.getElementById('viewFollowersLink');
     const viewFollowingLink = document.getElementById('viewFollowingLink');
     if (viewFollowersLink) {
@@ -1206,9 +1231,6 @@ const App = {
     }
   },
 
-  /**
-   * Страница relations.html - список подписчиков/подписок
-   */
   async renderRelationsPage() {
     const authOk = await this.requireAuth();
     if (!authOk) return;
@@ -1296,9 +1318,6 @@ const App = {
     }
   },
 
-  /**
-   * Страница messages.html — переписка
-   */
   async renderMessagesPage() {
     const authOk = await this.requireAuth();
     if (!authOk) return;
@@ -1425,7 +1444,6 @@ const App = {
       });
     }
 
-    // Загрузка диалогов и рекомендаций
     (async () => {
       try {
         const convResp = await window.API.Messages.getConversations();
@@ -1433,10 +1451,10 @@ const App = {
           conversationsList.innerHTML = '';
           convResp.users.forEach(u => renderUserItem(u, conversationsList));
         } else if (conversationsList) {
-          conversationsList.innerHTML = '<p class="muted">No conversations yet</p>';
+          conversationsList.innerHTML = '<p class="muted">' + (I18n.t('no_conversations') || 'No conversations yet') + '</p>';
         }
       } catch (e) {
-        if (conversationsList) conversationsList.innerHTML = '<p class="muted">No conversations</p>';
+        if (conversationsList) conversationsList.innerHTML = '<p class="muted">' + (I18n.t('no_conversations') || 'No conversations') + '</p>';
       }
       try {
         const recResp = await window.API.Recommendations.getUsers();
@@ -1449,7 +1467,7 @@ const App = {
             const recentResp = await window.API.User.getRecentUsers();
             const recent = (recentResp.users || []).filter(u => String(u.id) !== String(currentUser.id)).slice(0, 5);
             recent.forEach(u => renderUserItem(u, recommendationsList));
-            if (recent.length === 0) recommendationsList.innerHTML = '<p class="muted">No users to recommend</p>';
+            if (recent.length === 0) recommendationsList.innerHTML = '<p class="muted">' + (I18n.t('no_recommendations_msg') || 'No users to recommend') + '</p>';
           }
         }
       } catch (e) {
@@ -1459,10 +1477,10 @@ const App = {
           if (recommendationsList) {
             recommendationsList.innerHTML = '';
             if (recent.length) recent.forEach(u => renderUserItem(u, recommendationsList));
-            else recommendationsList.innerHTML = '<p class="muted">No users to recommend</p>';
+            else recommendationsList.innerHTML = '<p class="muted">' + (I18n.t('no_recommendations_msg') || 'No users to recommend') + '</p>';
           }
         } catch (e2) {
-          if (recommendationsList) recommendationsList.innerHTML = '<p class="muted">No recommendations</p>';
+          if (recommendationsList) recommendationsList.innerHTML = '<p class="muted">' + (I18n.t('no_recommendations_msg') || 'No recommendations') + '</p>';
         }
       }
     })();
@@ -1484,14 +1502,10 @@ const App = {
     }
   },
 
-  // По умолчанию заглушка
   refreshCurrentPage: null
 };
 
-// Делаем App глобальным
 window.App = App;
-
-// Автоматическая инициализация на index.html
 document.addEventListener('DOMContentLoaded', () => {
   const loginForm = document.getElementById('loginForm');
   const registerForm = document.getElementById('registerForm');

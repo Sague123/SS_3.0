@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>My Bubble — Messages</title>
+  <title data-i18n="messages_title">My Bubble — Messages</title>
   <link rel="stylesheet" href="styles.css">
   <link rel="icon" type="image/png" href="Icons/Logo.png">
 </head>
@@ -14,9 +14,9 @@
         <h1 class="brand-title">
           <img src="Icons/Logo.png" alt="Logo" class="logo-icon">
           <span class="brand-logo-text">Logo</span>
-          <span>Tell ur story</span>
+          <span data-i18n="feed_title">Tell ur story</span>
         </h1>
-        <p class="subtitle">Messages</p>
+        <p class="subtitle" data-i18n="messages_title">Messages</p>
       </div>
       <nav class="nav">
         <a href="feed.html" class="nav-link nav-link-feed" data-i18n="nav_feed">Лента</a>
@@ -34,11 +34,11 @@
     <main class="layout-two-columns">
       <section class="column-main">
         <div class="card">
-          <h2>Messages</h2>
-          <h3 style="font-size: 0.95rem; margin-top: 8px;">Recent conversations</h3>
+          <h2 data-i18n="messages_title">Messages</h2>
+          <h3 style="font-size: 0.95rem; margin-top: 8px;" data-i18n="messages_recent">Recent conversations</h3>
           <div id="messagesConversationsList" class="users-list" style="min-height: 40px;"></div>
-          <h3 style="font-size: 0.95rem; margin-top: 12px;">Recommendations — write to</h3>
-          <input type="text" id="messagesSearchInput" placeholder="Search user..." style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid #d1d5db; margin-top: 4px;">
+          <h3 style="font-size: 0.95rem; margin-top: 12px;" data-i18n="messages_recommendations">Recommendations — write to</h3>
+          <input type="text" id="messagesSearchInput" data-i18n="messages_search_placeholder" placeholder="Search user..." style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid #d1d5db; margin-top: 4px;">
           <div id="messagesRecommendationsList" class="users-list" style="margin-top: 8px;"></div>
           <div id="messagesUsersList" class="users-list" style="margin-top: 8px;"></div>
         </div>
@@ -46,19 +46,19 @@
 
       <aside class="column-side">
         <div class="card">
-          <h3>Dialog</h3>
-          <div id="messagesConversationHeader" class="muted" style="margin-bottom: 6px;">Выберите пользователя слева</div>
+          <h3 data-i18n="messages_dialog">Dialog</h3>
+          <div id="messagesConversationHeader" class="muted" style="margin-bottom: 6px;" data-i18n="messages_choose_user">Выберите пользователя слева</div>
           <div id="messagesConversation" style="max-height: 360px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 8px; padding: 8px; margin-bottom: 8px;"></div>
           <div>
-            <textarea id="messagesInput" rows="3" placeholder="Написать сообщение..." style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid #d1d5db;"></textarea>
-            <button id="messagesSendBtn" class="btn primary small" type="button" style="margin-top: 6px;">Send</button>
+            <textarea id="messagesInput" rows="3" data-i18n="messages_placeholder" placeholder="Написать сообщение..." style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid #d1d5db;"></textarea>
+            <button id="messagesSendBtn" class="btn primary small" type="button" style="margin-top: 6px;" data-i18n="messages_send">Send</button>
           </div>
         </div>
       </aside>
     </main>
 
     <footer class="app-footer">
-      <p>Messages are stored on the server (SQLite).</p>
+      <p data-i18n="messages_footer">Messages are stored on the server in SQL database with encryption.</p>
     </footer>
   </div>
 

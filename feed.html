@@ -33,16 +33,26 @@
     </header>
 
     <main class="layout-two-columns">
-      <section class="column-main">
-        <div class="card" id="networkStatsCard">
-          <h3>Network stats</h3>
-          <div class="network-stats">
-            <div class="stat"><span id="statUsers">0</span> Users</div>
-            <div class="stat"><span id="statPosts">0</span> Posts</div>
-            <div class="stat"><span id="statComments">0</span> Comments</div>
+      <section class="column-main column-main-feed">
+        <div class="card card-collapsible" id="networkStatsCard">
+          <h3 class="card-collapse-head">
+            <span data-i18n="feed_network_stats">Network stats</span>
+            <button type="button" class="card-collapse-btn" aria-expanded="true" data-collapse-target="networkStatsBody"></button>
+          </h3>
+          <div id="networkStatsBody" class="card-collapse-body">
+            <div class="network-stats">
+              <div class="stat"><span id="statUsers">0</span> <span data-i18n="stat_users">Users</span></div>
+              <div class="stat"><span id="statPosts">0</span> <span data-i18n="stat_posts">Posts</span></div>
+              <div class="stat"><span id="statComments">0</span> <span data-i18n="stat_comments">Comments</span></div>
+            </div>
+            <h4 class="card-collapse-head sub" style="margin-top: 12px; font-size: 0.95rem;">
+              <span data-i18n="feed_last_users">Last registered users</span>
+              <button type="button" class="card-collapse-btn" aria-expanded="true" data-collapse-target="lastRegisteredBody"></button>
+            </h4>
+            <div id="lastRegisteredBody" class="card-collapse-body">
+              <div id="lastRegisteredUsers" class="users-list"></div>
+            </div>
           </div>
-          <h4 style="margin-top: 12px; font-size: 0.95rem;">Last registered users</h4>
-          <div id="lastRegisteredUsers" class="users-list"></div>
         </div>
 
         <div class="card">
@@ -56,6 +66,16 @@
               <input type="file" id="postFile" class="file-input">
               <div id="postFileStatus" class="muted" style="margin-top: 4px;"></div>
             </div>
+            <div class="form-group">
+              <label class="mood-label" data-i18n="post_mood_label">Настроение</label>
+              <div class="mood-options" id="postMoodOptions">
+                <label class="mood-option"><input type="radio" name="postMood" value="happy" checked> 🙂 Happy</label>
+                <label class="mood-option"><input type="radio" name="postMood" value="sad"> 😢 Sad</label>
+                <label class="mood-option"><input type="radio" name="postMood" value="inspired"> 🔥 Inspired</label>
+                <label class="mood-option"><input type="radio" name="postMood" value="thinking"> 🤔 Thinking</label>
+                <label class="mood-option"><input type="radio" name="postMood" value="dark"> 💀 Dark</label>
+              </div>
+            </div>
             <button type="submit" class="btn primary" data-i18n="create_post_button">Опубликовать</button>
           </form>
         </div>
@@ -68,7 +88,60 @@
         </div>
       </section>
 
-      <aside class="column-side">
+      <aside class="column-side column-side-feed">
+        <div class="card card-collapsible" id="recommendationsCard">
+          <h3 class="card-collapse-head">
+            <span data-i18n="recommendations_title">Рекомендации</span>
+            <button type="button" class="card-collapse-btn" aria-expanded="true" data-collapse-target="recommendationsCardBody"></button>
+          </h3>
+          <div id="recommendationsCardBody" class="card-collapse-body">
+            <h4 class="card-collapse-head sub" style="margin-top: 0; font-size: 0.95rem;">
+              <span data-i18n="rec_settings_title">Recommendation Settings</span>
+              <button type="button" class="card-collapse-btn" aria-expanded="true" data-collapse-target="recSettingsBody"></button>
+            </h4>
+            <div id="recSettingsBody" class="card-collapse-body">
+              <div id="recSettingsPanel" class="rec-settings-panel">
+                <div class="form-group">
+                  <label>followersWeight: <span id="w_followersWeight_val">1</span></label>
+                  <input id="w_followersWeight" type="range" min="0" max="10" step="0.1" value="1">
+                </div>
+                <div class="form-group">
+                  <label>commonFollowingWeight: <span id="w_commonFollowingWeight_val">2</span></label>
+                  <input id="w_commonFollowingWeight" type="range" min="0" max="10" step="0.1" value="2">
+                </div>
+                <div class="form-group">
+                  <label>postsWeight: <span id="w_postsWeight_val">0.5</span></label>
+                  <input id="w_postsWeight" type="range" min="0" max="10" step="0.1" value="0.5">
+                </div>
+                <div class="form-group">
+                  <label>likesWeight: <span id="w_likesWeight_val">1</span></label>
+                  <input id="w_likesWeight" type="range" min="0" max="10" step="0.1" value="1">
+                </div>
+                <div class="form-group">
+                  <label>commentsWeight: <span id="w_commentsWeight_val">2</span></label>
+                  <input id="w_commentsWeight" type="range" min="0" max="10" step="0.1" value="2">
+                </div>
+                <div class="form-group">
+                  <label>repostsWeight: <span id="w_repostsWeight_val">3</span></label>
+                  <input id="w_repostsWeight" type="range" min="0" max="10" step="0.1" value="3">
+                </div>
+                <div class="form-group">
+                  <label>attentionWeight: <span id="w_attentionWeight_val">0.5</span></label>
+                  <input id="w_attentionWeight" type="range" min="0" max="10" step="0.1" value="0.5">
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label>freshnessWeight: <span id="w_freshnessWeight_val">2</span></label>
+                  <input id="w_freshnessWeight" type="range" min="0" max="10" step="0.1" value="2">
+                </div>
+                <button id="recSettingsReset" type="button" class="btn ghost small" data-i18n="rec_reset">Сбросить настройки</button>
+              </div>
+            </div>
+            <div id="recommendationsContainer" class="users-list" style="margin-top: 12px;">
+              <!-- Рекомендованные пользователи -->
+            </div>
+          </div>
+        </div>
+
         <div class="card">
           <h3 data-i18n="search_users_title">Поиск пользователей</h3>
           <input type="text" id="searchInput" data-i18n="search_placeholder" placeholder="Введите username">
@@ -95,61 +168,18 @@
             <button id="miniProfileBioSave" class="btn small primary" type="button">Save</button>
           </div>
         </div>
-
-        <div class="card">
-          <h3 data-i18n="recommendations_title">Рекомендации</h3>
-          <button id="recSettingsToggle" class="btn ghost small" type="button" style="margin: 6px 0 10px;">
-            Recommendation Settings
-          </button>
-          <div id="recSettingsPanel" class="card" style="padding: 12px; margin: 0 0 10px; display: none;">
-            <div class="form-group">
-              <label>followersWeight: <span id="w_followersWeight_val">1</span></label>
-              <input id="w_followersWeight" type="range" min="0" max="10" step="0.1" value="1">
-            </div>
-            <div class="form-group">
-              <label>commonFollowingWeight: <span id="w_commonFollowingWeight_val">2</span></label>
-              <input id="w_commonFollowingWeight" type="range" min="0" max="10" step="0.1" value="2">
-            </div>
-            <div class="form-group">
-              <label>postsWeight: <span id="w_postsWeight_val">0.5</span></label>
-              <input id="w_postsWeight" type="range" min="0" max="10" step="0.1" value="0.5">
-            </div>
-            <div class="form-group">
-              <label>likesWeight: <span id="w_likesWeight_val">1</span></label>
-              <input id="w_likesWeight" type="range" min="0" max="10" step="0.1" value="1">
-            </div>
-            <div class="form-group">
-              <label>commentsWeight: <span id="w_commentsWeight_val">2</span></label>
-              <input id="w_commentsWeight" type="range" min="0" max="10" step="0.1" value="2">
-            </div>
-            <div class="form-group">
-              <label>repostsWeight: <span id="w_repostsWeight_val">3</span></label>
-              <input id="w_repostsWeight" type="range" min="0" max="10" step="0.1" value="3">
-            </div>
-            <div class="form-group">
-              <label>attentionWeight: <span id="w_attentionWeight_val">0.5</span></label>
-              <input id="w_attentionWeight" type="range" min="0" max="10" step="0.1" value="0.5">
-            </div>
-            <div class="form-group" style="margin-bottom: 0;">
-              <label>freshnessWeight: <span id="w_freshnessWeight_val">2</span></label>
-              <input id="w_freshnessWeight" type="range" min="0" max="10" step="0.1" value="2">
-            </div>
-          </div>
-          <div id="recommendationsContainer" class="users-list">
-            <!-- Рекомендованные пользователи -->
-          </div>
-        </div>
       </aside>
     </main>
 
     <footer class="app-footer">
-      <p data-i18n="feed_footer">Все данные хранятся на сервере в базе данных SQLite.</p>
+      <p data-i18n="feed_footer">Все данные хранятся на сервере в SQL базе с шифрованием.</p>
     </footer>
   </div>
 
   <script src="texts-db.js"></script>
   <script src="translations.js"></script>
   <script src="api.js"></script>
+  <script src="crop_modal.js"></script>
   <script src="script_api.js"></script>
   <script>
     // Инициализация логики ленты после загрузки общей логики script.js

@@ -1,37 +1,24 @@
 """
-Модуль для работы с базой данных SQLite.
-Содержит функции для инициализации БД и создания всех необходимых таблиц.
+SQLite DB: init and table creation.
 """
 
 import sqlite3
 import os
 from datetime import datetime
 
-# Путь к файлу базы данных
 DB_PATH = 'social_network.db'
 
 
 def get_db_connection():
-    """
-    Создает и возвращает соединение с базой данных SQLite.
-    
-    Returns:
-        sqlite3.Connection: Соединение с БД
-    """
     conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row  # Возвращает результаты как словари
+    conn.row_factory = sqlite3.Row
     return conn
 
 
 def init_database():
-    """
-    Инициализирует базу данных: создает все необходимые таблицы,
-    если они еще не существуют.
-    """
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # Таблица пользователей
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS Users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -44,12 +31,12 @@ def init_database():
         )
     ''')
     
-    # Таблица постов
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS Posts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             userId INTEGER NOT NULL,
             content TEXT NOT NULL,
+            mood TEXT DEFAULT 'happy',
             createdAt TEXT NOT NULL,
             attentionSum REAL DEFAULT 0,
             viewsCount INTEGER DEFAULT 0,
@@ -57,7 +44,6 @@ def init_database():
         )
     ''')
     
-    # Таблица лайков
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS Likes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -71,7 +57,6 @@ def init_database():
         )
     ''')
     
-    # Таблица комментариев
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS Comments (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -84,7 +69,19 @@ def init_database():
         )
     ''')
     
-    # Таблица репостов
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS CommentLikes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            commentId INTEGER NOT NULL,
+            userId INTEGER NOT NULL,
+            reactionType TEXT DEFAULT 'heart',
+            createdAt TEXT NOT NULL,
+            UNIQUE(commentId, userId),
+            FOREIGN KEY (commentId) REFERENCES Comments(id) ON DELETE CASCADE,
+            FOREIGN KEY (userId) REFERENCES Users(id) ON DELETE CASCADE
+        )
+    ''')
+    
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS Reposts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -96,7 +93,6 @@ def init_database():
         )
     ''')
     
-    # Таблица подписок (followers)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS Followers (
             followerId INTEGER NOT NULL,
@@ -109,7 +105,6 @@ def init_database():
         )
     ''')
     
-    # Таблица файлов
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS Files (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -124,25 +119,31 @@ def init_database():
         )
     ''')
     
-    # Создаем индексы для улучшения производительности
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_userId ON Posts(userId)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_likes_postId ON Likes(postId)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_likes_userId ON Likes(userId)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_comments_postId ON Comments(postId)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_comment_likes_commentId ON CommentLikes(commentId)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_comment_likes_userId ON CommentLikes(userId)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_reposts_originalPostId ON Reposts(originalPostId)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_reposts_userId ON Reposts(userId)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_followers_followerId ON Followers(followerId)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_followers_followingId ON Followers(followingId)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_files_postId ON Files(postId)')
 
-    # Миграция: добавить reactionType в Likes, если таблица уже существовала без него
+    # migration: add reactionType to Likes if table existed without it
     try:
         cursor.execute('SELECT reactionType FROM Likes LIMIT 1')
     except sqlite3.OperationalError:
         cursor.execute('ALTER TABLE Likes ADD COLUMN reactionType TEXT DEFAULT \'heart\'')
         conn.commit()
 
-    # Таблица сообщений
+    try:
+        cursor.execute('SELECT mood FROM Posts LIMIT 1')
+    except sqlite3.OperationalError:
+        cursor.execute('ALTER TABLE Posts ADD COLUMN mood TEXT DEFAULT \'happy\'')
+        conn.commit()
+
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS Messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -163,5 +164,4 @@ def init_database():
 
 
 if __name__ == '__main__':
-    # Если скрипт запускается напрямую, инициализируем БД
     init_database()

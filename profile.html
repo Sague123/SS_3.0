@@ -67,6 +67,10 @@
             <span id="followingCount">0</span>
             <a id="followingLink" href="#" class="muted" data-i18n="following_label">Подписки</a>
           </div>
+          <div class="stat">
+            <span id="storyScoreCount">0</span>
+            <span class="muted" data-i18n="story_score_label">Story Score</span>
+          </div>
         </div>
       </section>
 
@@ -79,12 +83,13 @@
     </main>
 
     <footer class="app-footer">
-      <p data-i18n="profile_footer">Профиль и статистика берутся из LocalStorage.</p>
+      <p data-i18n="profile_footer">Профиль и статистика загружаются из SQL базы с шифрованием.</p>
     </footer>
   </div>
 
   <script src="translations.js"></script>
   <script src="api.js"></script>
+  <script src="crop_modal.js"></script>
   <script src="script_api.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', () => {
