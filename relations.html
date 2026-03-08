@@ -4,16 +4,22 @@
   <meta charset="UTF-8">
   <title data-i18n="app_title">My Bubble — Vztahy</title>
   <link rel="stylesheet" href="styles.css">
+  <link rel="icon" type="image/png" href="Icons/Logo.png">
 </head>
 <body>
   <div class="app-container">
     <header class="app-header app-header-nav">
       <div>
-        <h1 data-i18n="app_title">My Bubble</h1>
+        <h1 class="brand-title">
+          <img src="Icons/Logo.png" alt="Logo" class="logo-icon">
+          <span class="brand-logo-text">Logo</span>
+          <span data-i18n="app_title">Tell ur story</span>
+        </h1>
         <p class="subtitle" id="relationsSubtitle">Relations</p>
       </div>
       <nav class="nav">
-        <a href="feed.html" class="nav-link" data-i18n="nav_feed">Лента</a>
+        <a href="feed.html" class="nav-link nav-link-feed" data-i18n="nav_feed">Лента</a>
+        <a href="messages.html" class="nav-link" data-i18n="nav_messages">Сообщения</a>
         <a href="profile.html" class="nav-link" data-i18n="nav_profile">Профиль</a>
         <select id="languageSelect" class="language-select">
           <option value="cs" data-i18n="lang_cs">Čeština</option>

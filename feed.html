@@ -4,16 +4,22 @@
   <meta charset="UTF-8">
   <title data-i18n="feed_title">My Bubble — Lenta</title>
   <link rel="stylesheet" href="styles.css">
+  <link rel="icon" type="image/png" href="Icons/Logo.png">
 </head>
 <body>
   <div class="app-container">
     <header class="app-header app-header-nav">
       <div>
-        <h1 data-i18n="feed_title">My Bubble</h1>
+        <h1 class="brand-title">
+          <img src="Icons/Logo.png" alt="Logo" class="logo-icon">
+          <span class="brand-logo-text">Logo</span>
+          <span data-i18n="feed_title">Tell ur story</span>
+        </h1>
         <p class="subtitle" data-i18n="feed_subtitle">Лента постов</p>
       </div>
       <nav class="nav">
-        <a href="feed.html" class="nav-link active" data-i18n="nav_feed">Лента</a>
+        <a href="feed.html" class="nav-link nav-link-feed active" data-i18n="nav_feed">Лента</a>
+        <a href="messages.html" class="nav-link" data-i18n="nav_messages">Сообщения</a>
         <a href="profile.html" class="nav-link" data-i18n="nav_profile">Профиль</a>
         <select id="languageSelect" class="language-select">
           <option value="cs" data-i18n="lang_cs">Čeština</option>
@@ -35,6 +41,7 @@
             <div class="form-group">
               <label for="postFile" class="file-input-label" data-i18n="attach_file_label">Прикрепить файл</label>
               <input type="file" id="postFile" class="file-input">
+              <div id="postFileStatus" class="muted" style="margin-top: 4px;"></div>
             </div>
             <button type="submit" class="btn primary" data-i18n="create_post_button">Опубликовать</button>
           </form>
@@ -54,6 +61,25 @@
           <input type="text" id="searchInput" data-i18n="search_placeholder" placeholder="Введите username">
           <div id="searchResults" class="users-list">
             <!-- Результаты поиска -->
+          </div>
+        </div>
+
+        <div class="card" id="miniProfileCard">
+          <h3>My profile</h3>
+          <div class="mini-profile">
+            <div class="avatar mini-avatar" id="miniProfileAvatar"></div>
+            <div class="mini-profile-main">
+              <div class="mini-profile-name" id="miniProfileName"></div>
+              <div class="mini-profile-username" id="miniProfileUsername"></div>
+            </div>
+          </div>
+          <div class="mini-profile-stats">
+            <div><span id="miniProfileFollowers">0</span> followers</div>
+            <div><span id="miniProfileFollowing">0</span> following</div>
+          </div>
+          <div class="mini-profile-bio">
+            <textarea id="miniProfileBioInput" rows="2" placeholder="Update your bio..."></textarea>
+            <button id="miniProfileBioSave" class="btn small primary" type="button">Save</button>
           </div>
         </div>
 

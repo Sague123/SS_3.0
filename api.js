@@ -253,9 +253,34 @@ const RecommendationsAPI = {
   }
 };
 
+/**
+ * API для сообщений
+ */
+const MessagesAPI = {
+  /**
+   * Получить сообщения с пользователем
+   */
+  async getMessages(withUserId) {
+    const params = new URLSearchParams();
+    params.set('withUser', String(withUserId));
+    return apiRequest(`/messages?${params.toString()}`);
+  },
+
+  /**
+   * Отправить сообщение пользователю
+   */
+  async sendMessage(toUserId, content) {
+    return apiRequest('/messages', {
+      method: 'POST',
+      body: JSON.stringify({ toUserId, content })
+    });
+  }
+};
+
 // Экспортируем API для использования в других модулях
 window.API = {
   User: UserAPI,
   Post: PostAPI,
-  Recommendations: RecommendationsAPI
+  Recommendations: RecommendationsAPI,
+  Messages: MessagesAPI
 };

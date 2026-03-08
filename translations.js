@@ -69,6 +69,13 @@ const TRANSLATIONS = {
     unlike: 'Odebrat lajk',
     delete_post: 'Smazat',
     likes_word: 'lajků',
+    comment: 'Komentovat',
+    comments_word: 'komentářů',
+    comment_placeholder: 'Napište komentář...',
+    submit_comment: 'Odeslat',
+    repost: 'Sdílet',
+    reposts_word: 'sdílení',
+    reposted: 'Sdíleno',
 
     follow: 'Sledovat',
     unfollow: 'Přestat sledovat',
@@ -109,7 +116,7 @@ const TRANSLATIONS = {
     search_users_title: 'Поиск пользователей',
     search_placeholder: 'Введите username',
     recommendations_title: 'Рекомендации',
-    feed_footer: 'Все данные этой ленты хранятся в LocalStorage браузера.',
+    feed_footer: 'Все данные этой ленты хранятся на сервере в базе данных SQLite.',
 
     profile_subtitle: 'Профиль пользователя',
     edit_bio_title: 'Редактировать био',
@@ -163,7 +170,9 @@ const TRANSLATIONS = {
 
     lang_cs: 'Čeština',
     lang_ru: 'Русский',
-    lang_en: 'English'
+    lang_en: 'English',
+
+    nav_messages: 'Сообщения'
   },
   en: {
     app_title: 'Tell ur story',
@@ -193,7 +202,7 @@ const TRANSLATIONS = {
     search_users_title: 'User search',
     search_placeholder: 'Enter username',
     recommendations_title: 'Recommendations',
-    feed_footer: 'All feed data is stored in browser LocalStorage.',
+    feed_footer: 'All feed data is stored on the server in SQLite.',
 
     profile_subtitle: 'User profile',
     edit_bio_title: 'Edit bio',
@@ -244,6 +253,8 @@ const TRANSLATIONS = {
 
     attachment_label: 'Attachment',
     attachment_download: 'Download file',
+
+    nav_messages: 'Messages',
 
     lang_cs: 'Čeština',
     lang_ru: 'Русский',

@@ -806,6 +806,112 @@ def get_following(user_id):
     return jsonify({'success': True, 'users': users})
 
 
+@app.route('/api/messages', methods=['GET'])
+def get_messages():
+    """
+    Получает сообщения между текущим пользователем и другим пользователем.
+
+    Query params:
+        withUser (int): ID собеседника
+    """
+    current_user_id = require_auth()
+    if not current_user_id:
+        return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
+
+    try:
+        other_id = int(request.args.get('withUser', ''))
+    except (TypeError, ValueError):
+        return jsonify({'success': False, 'message': 'withUser is required'}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('SELECT id FROM Users WHERE id = ?', (other_id,))
+    if not cursor.fetchone():
+        conn.close()
+        return jsonify({'success': False, 'message': 'Пользователь не найден'}), 404
+
+    cursor.execute('''
+        SELECT m.id, m.fromUserId, m.toUserId, m.content, m.createdAt,
+               uf.username AS fromUsername,
+               ut.username AS toUsername
+        FROM Messages m
+        JOIN Users uf ON m.fromUserId = uf.id
+        JOIN Users ut ON m.toUserId = ut.id
+        WHERE (m.fromUserId = ? AND m.toUserId = ?)
+           OR (m.fromUserId = ? AND m.toUserId = ?)
+        ORDER BY m.createdAt ASC
+    ''', (current_user_id, other_id, other_id, current_user_id))
+
+    messages = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+
+    return jsonify({'success': True, 'messages': messages})
+
+
+@app.route('/api/messages', methods=['POST'])
+def send_message():
+    """
+    Отправляет сообщение другому пользователю.
+
+    Request body:
+        {
+            "toUserId": int,
+            "content": "string"
+        }
+    """
+    from_user_id = require_auth()
+    if not from_user_id:
+        return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
+
+    data = request.get_json() or {}
+    to_user_id = data.get('toUserId')
+    content = (data.get('content') or '').strip()
+
+    try:
+        to_user_id = int(to_user_id)
+    except (TypeError, ValueError):
+        return jsonify({'success': False, 'message': 'Некорректный получатель'}), 400
+
+    if not content:
+        return jsonify({'success': False, 'message': 'Сообщение не может быть пустым'}), 400
+
+    if to_user_id == from_user_id:
+        return jsonify({'success': False, 'message': 'Нельзя писать самому себе'}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('SELECT id FROM Users WHERE id = ?', (to_user_id,))
+    if not cursor.fetchone():
+        conn.close()
+        return jsonify({'success': False, 'message': 'Пользователь не найден'}), 404
+
+    created_at = datetime.now().isoformat()
+    cursor.execute('''
+        INSERT INTO Messages (fromUserId, toUserId, content, createdAt)
+        VALUES (?, ?, ?, ?)
+    ''', (from_user_id, to_user_id, content, created_at))
+
+    message_id = cursor.lastrowid
+    conn.commit()
+
+    cursor.execute('''
+        SELECT m.id, m.fromUserId, m.toUserId, m.content, m.createdAt,
+               uf.username AS fromUsername,
+               ut.username AS toUsername
+        FROM Messages m
+        JOIN Users uf ON m.fromUserId = uf.id
+        JOIN Users ut ON m.toUserId = ut.id
+        WHERE m.id = ?
+    ''', (message_id,))
+
+    message = dict(cursor.fetchone())
+    conn.close()
+
+    return jsonify({'success': True, 'message': message})
+
+
 @app.route('/api/users/<int:user_id>/stats', methods=['GET'])
 def get_user_stats(user_id):
     """

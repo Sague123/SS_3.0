@@ -17,18 +17,6 @@ let currentUser = null;
 // Кэш пользователей для быстрого доступа
 const usersCache = new Map();
 
-// Рандомные фразы для заголовка ленты
-const feedSubtitles = [
-  'Лента постов',
-  'Что нового?',
-  'Последние обновления',
-  'Интересные истории',
-  'Свежие новости',
-  'Ваши друзья здесь',
-  'Добро пожаловать!',
-  'Что происходит?'
-];
-
 // ========= Recommendation weights (frontend-controlled) =========
 
 const REC_WEIGHTS_STORAGE_KEY = 'recommendationWeights';
@@ -115,7 +103,19 @@ function setupRecommendationSettingsPanel(onWeightsChange) {
  * Получает случайную фразу для заголовка ленты
  */
 function getRandomFeedSubtitle() {
-  return feedSubtitles[Math.floor(Math.random() * feedSubtitles.length)];
+  try {
+    if (window.TextDB && I18n && typeof I18n.getLanguage === 'function') {
+      const lang = I18n.getLanguage() || 'ru';
+      const table = window.TextDB[lang] || window.TextDB['ru'] || window.TextDB['cs'];
+      const arr = table && table.feedPhrases;
+      if (arr && arr.length) {
+        return arr[Math.floor(Math.random() * arr.length)];
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return 'Лента постов';
 }
 
 /**
@@ -234,7 +234,7 @@ async function renderPost(post, currentUserId) {
   const likesCount = post.likesCount || 0;
   const commentsCount = post.commentsCount || 0;
   const repostsCount = post.repostsCount || 0;
-  const liked = post.liked || false;
+  let liked = !!post.liked;
   const reposted = post.reposted || false;
   const canDelete = String(post.userId) === String(currentUserId);
 
@@ -245,10 +245,9 @@ async function renderPost(post, currentUserId) {
   const likesWord = I18n.t('likes_word');
   const commentsWord = I18n.t('comments_word') || 'комментариев';
   const repostsWord = I18n.t('reposts_word') || 'репостов';
-  const likeText = liked ? I18n.t('unlike') : I18n.t('like');
   const deleteText = I18n.t('delete_post');
-  const commentText = I18n.t('comment') || 'Комментировать';
-  const repostText = I18n.t('repost') || 'Репост';
+  const commentText = 'Comment';
+  const repostText = 'Repost';
 
   // Обработка файлов
   let attachmentHtml = '';
@@ -287,10 +286,14 @@ async function renderPost(post, currentUserId) {
     <div class="post-content">${escapeHtml(post.content || '')}</div>
     ${attachmentHtml}
     <div class="post-actions">
-      <button class="link-button" data-action="like" ${liked ? 'data-liked="true"' : ''}>
-        ${likeText}
-      </button>
-      <span>${likesCount} ${likesWord}</span>
+      <span class="muted" style="margin-right: 4px;">Reactions:</span>
+      <div class="post-reactions">
+        <button class="reaction-button" data-reaction="heart">❤️</button>
+        <button class="reaction-button" data-reaction="fire">🔥</button>
+        <button class="reaction-button" data-reaction="laugh">😂</button>
+        <button class="reaction-button" data-reaction="wow">😮</button>
+      </div>
+      <span class="post-reactions-count">${likesCount} ${likesWord}</span>
       <button class="link-button" data-action="comment" style="margin-left: 12px;">
         ${commentText}
       </button>
@@ -311,20 +314,87 @@ async function renderPost(post, currentUserId) {
     </div>
   `;
 
-  // Обработчик лайка
-  const likeBtn = div.querySelector('[data-action="like"]');
-  likeBtn.addEventListener('click', async () => {
+  // Реакции (эмодзи вместо лайка) с локальным сохранением типа реакции
+  const POST_REACTIONS_KEY = 'postReactions';
+  function loadPostReactions() {
     try {
-      const response = await window.API.Post.toggleLike(post.id);
-      if (response.success) {
-        likeBtn.textContent = response.liked ? I18n.t('unlike') : I18n.t('like');
-        likeBtn.setAttribute('data-liked', response.liked);
-        const likesSpan = likeBtn.nextElementSibling;
-        likesSpan.textContent = `${response.likesCount} ${likesWord}`;
-      }
-    } catch (error) {
-      alert('Ошибка: ' + error.message);
+      const raw = localStorage.getItem(POST_REACTIONS_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
     }
+  }
+  function savePostReactions(map) {
+    try {
+      localStorage.setItem(POST_REACTIONS_KEY, JSON.stringify(map));
+    } catch {
+      // ignore
+    }
+  }
+  const reactionsMap = loadPostReactions();
+  const currentReaction = reactionsMap[post.id];
+
+  const reactionButtons = Array.from(div.querySelectorAll('.reaction-button'));
+  const reactionsCountSpan = div.querySelector('.post-reactions-count');
+
+  if (currentReaction && liked) {
+    reactionButtons.forEach(btn => {
+      if (btn.dataset.reaction === currentReaction) {
+        btn.classList.add('reaction-active');
+      }
+    });
+  }
+
+  reactionButtons.forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const reaction = btn.dataset.reaction;
+      const map = loadPostReactions();
+      const stored = map[post.id];
+
+      // Если не лайкнуто - лайкаем и ставим реакцию
+      if (!liked) {
+        try {
+          const response = await window.API.Post.toggleLike(post.id);
+          if (response.success) {
+            liked = response.liked;
+            reactionsCountSpan.textContent = `${response.likesCount} ${likesWord}`;
+            if (response.liked) {
+              map[post.id] = reaction;
+              savePostReactions(map);
+              reactionButtons.forEach(b => b.classList.toggle('reaction-active', b === btn));
+            }
+          }
+        } catch (error) {
+          alert('Ошибка: ' + error.message);
+        }
+        return;
+      }
+
+      // Уже лайкнуто:
+      // 1) клик по той же реакции => убираем лайк
+      if (stored === reaction) {
+        try {
+          const response = await window.API.Post.toggleLike(post.id);
+          if (response.success) {
+            liked = response.liked;
+            reactionsCountSpan.textContent = `${response.likesCount} ${likesWord}`;
+            if (!response.liked) {
+              delete map[post.id];
+              savePostReactions(map);
+              reactionButtons.forEach(b => b.classList.remove('reaction-active'));
+            }
+          }
+        } catch (error) {
+          alert('Ошибка: ' + error.message);
+        }
+        return;
+      }
+
+      // 2) клик по другой реакции => только меняем тип локально, без дополнительного запроса
+      map[post.id] = reaction;
+      savePostReactions(map);
+      reactionButtons.forEach(b => b.classList.toggle('reaction-active', b === btn));
+    });
   });
 
   // Обработчик комментариев
@@ -586,6 +656,55 @@ const App = {
     }
   },
 
+  async renderMiniProfile(currentUser) {
+    const card = document.getElementById('miniProfileCard');
+    if (!card || !currentUser) return;
+
+    const avatarEl = document.getElementById('miniProfileAvatar');
+    const nameEl = document.getElementById('miniProfileName');
+    const usernameEl = document.getElementById('miniProfileUsername');
+    const followersEl = document.getElementById('miniProfileFollowers');
+    const followingEl = document.getElementById('miniProfileFollowing');
+    const bioInput = document.getElementById('miniProfileBioInput');
+    const saveBtn = document.getElementById('miniProfileBioSave');
+
+    if (avatarEl) {
+      avatarEl.innerHTML = userAvatarHTML(currentUser);
+      avatarEl.classList.add('avatar-clickable', 'mini-avatar');
+      avatarEl.addEventListener('click', () => {
+        avatarEl.classList.toggle('avatar-zoomed');
+      });
+    }
+    if (nameEl) nameEl.textContent = currentUser.username || '';
+    if (usernameEl) usernameEl.textContent = currentUser.email || '';
+
+    try {
+      const statsResponse = await window.API.User.getUserStats(currentUser.id);
+      if (statsResponse.success) {
+        const stats = statsResponse.stats;
+        if (followersEl) followersEl.textContent = stats.followersCount;
+        if (followingEl) followingEl.textContent = stats.followingCount;
+      }
+    } catch (error) {
+      // ignore
+    }
+
+    if (bioInput) bioInput.value = currentUser.bio || '';
+    if (saveBtn && bioInput) {
+      saveBtn.addEventListener('click', async () => {
+        const bio = bioInput.value.trim();
+        try {
+          const resp = await window.API.User.updateProfile(bio, null);
+          if (resp.success && resp.user) {
+            currentUser.bio = resp.user.bio;
+          }
+        } catch (error) {
+          alert('Ошибка: ' + error.message);
+        }
+      });
+    }
+  },
+
   /**
    * Страница feed.html - лента постов
    */
@@ -609,9 +728,12 @@ const App = {
     const currentUser = await getCurrentUser();
     if (!currentUser) return;
 
+    await this.renderMiniProfile(currentUser);
+
     const postForm = document.getElementById('postForm');
     const postContent = document.getElementById('postContent');
     const postFile = document.getElementById('postFile');
+    const postFileStatus = document.getElementById('postFileStatus');
 
     if (postForm && postContent) {
       postForm.addEventListener('submit', async (e) => {
@@ -630,6 +752,18 @@ const App = {
           }
         } catch (error) {
           alert('Ошибка: ' + error.message);
+        }
+      });
+    }
+
+    // Индикация прикрепленного файла
+    if (postFile && postFileStatus) {
+      postFile.addEventListener('change', () => {
+        if (postFile.files && postFile.files[0]) {
+          const name = postFile.files[0].name;
+          postFileStatus.textContent = `Фото прикреплено: ${name}`;
+        } else {
+          postFileStatus.textContent = '';
         }
       });
     }
@@ -1173,6 +1307,125 @@ const App = {
       });
     } catch (error) {
       listEl.innerHTML = `<p class="error-text">Ошибка загрузки: ${error.message}</p>`;
+    }
+  },
+
+  /**
+   * Страница messages.html — переписка
+   */
+  async renderMessagesPage() {
+    const authOk = await this.requireAuth();
+    if (!authOk) return;
+
+    this.setupLogoutButton();
+    this.setupLanguageSelector();
+    if (I18n.apply) {
+      I18n.apply(document);
+    }
+
+    const currentUser = await getCurrentUser();
+    if (!currentUser) return;
+
+    const searchInput = document.getElementById('messagesSearchInput');
+    const usersList = document.getElementById('messagesUsersList');
+    const convHeader = document.getElementById('messagesConversationHeader');
+    const convContainer = document.getElementById('messagesConversation');
+    const inputEl = document.getElementById('messagesInput');
+    const sendBtn = document.getElementById('messagesSendBtn');
+
+    let selectedUser = null;
+
+    async function loadConversation(withUserId, withUsername) {
+      if (!convContainer || !convHeader) return;
+      convHeader.textContent = `Диалог с ${withUsername}`;
+      convContainer.innerHTML = '<p class="muted">Загрузка...</p>';
+      try {
+        const resp = await window.API.Messages.getMessages(withUserId);
+        if (resp.success) {
+          convContainer.innerHTML = '';
+          if (resp.messages.length === 0) {
+            convContainer.innerHTML = '<p class="muted">Пока нет сообщений</p>';
+            return;
+          }
+          resp.messages.forEach(msg => {
+            const div = document.createElement('div');
+            const isOwn = String(msg.fromUserId) === String(currentUser.id);
+            div.style.marginBottom = '6px';
+            div.style.textAlign = isOwn ? 'right' : 'left';
+            div.innerHTML = `
+              <div style="display: inline-block; max-width: 80%; text-align: left; padding: 6px 8px; border-radius: 10px; background: ${isOwn ? '#dbeafe' : '#f3f4f6'};">
+                <div style="font-size: 0.8rem; color: #6b7280; margin-bottom: 2px;">
+                  ${escapeHtml(isOwn ? 'You' : msg.fromUsername)}
+                  <span style="margin-left: 4px;">${formatDate(msg.createdAt)}</span>
+                </div>
+                <div style="font-size: 0.9rem;">${escapeHtml(msg.content)}</div>
+              </div>
+            `;
+            convContainer.appendChild(div);
+          });
+          convContainer.scrollTop = convContainer.scrollHeight;
+        }
+      } catch (error) {
+        convContainer.innerHTML = `<p class="error-text">Ошибка загрузки: ${error.message}</p>`;
+      }
+    }
+
+    async function searchUsersForMessages(query) {
+      if (!usersList) return;
+      usersList.innerHTML = '';
+      const q = query.trim();
+      if (!q) return;
+      try {
+        const resp = await window.API.User.searchUsers(q);
+        if (resp.success) {
+          resp.users.forEach(u => {
+            if (String(u.id) === String(currentUser.id)) return;
+            const div = document.createElement('div');
+            div.className = 'user-item';
+            div.style.cursor = 'pointer';
+            div.innerHTML = `
+              <div class="user-main">
+                <div class="avatar">${userAvatarHTML(u)}</div>
+                <div>
+                  <strong>${escapeHtml(u.username)}</strong>
+                  <div class="muted">${escapeHtml(u.email || '')}</div>
+                </div>
+              </div>
+            `;
+            div.addEventListener('click', () => {
+              selectedUser = u;
+              loadConversation(u.id, u.username);
+            });
+            usersList.appendChild(div);
+          });
+        }
+      } catch (error) {
+        usersList.innerHTML = `<p class="error-text">Ошибка поиска: ${error.message}</p>`;
+      }
+    }
+
+    if (searchInput) {
+      let timeout;
+      searchInput.addEventListener('input', () => {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => searchUsersForMessages(searchInput.value), 300);
+      });
+    }
+
+    if (sendBtn && inputEl) {
+      sendBtn.addEventListener('click', async () => {
+        const text = inputEl.value.trim();
+        if (!text || !selectedUser) return;
+        try {
+          const resp = await window.API.Messages.sendMessage(selectedUser.id, text);
+          if (resp.success) {
+            inputEl.value = '';
+            await loadConversation(selectedUser.id, selectedUser.username);
+          }
+        } catch (error) {
+          alert('Ошибка: ' + error.message);
+        }
+      });
     }
   },
 

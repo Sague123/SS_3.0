@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <title>My Bubble — Messages</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="icon" type="image/png" href="Icons/Logo.png">
+</head>
+<body>
+  <div class="app-container">
+    <header class="app-header app-header-nav">
+      <div>
+        <h1 class="brand-title">
+          <img src="Icons/Logo.png" alt="Logo" class="logo-icon">
+          <span class="brand-logo-text">Logo</span>
+          <span>Tell ur story</span>
+        </h1>
+        <p class="subtitle">Messages</p>
+      </div>
+      <nav class="nav">
+        <a href="feed.html" class="nav-link nav-link-feed" data-i18n="nav_feed">Лента</a>
+        <a href="messages.html" class="nav-link active" data-i18n="nav_messages">Сообщения</a>
+        <a href="profile.html" class="nav-link" data-i18n="nav_profile">Профиль</a>
+        <select id="languageSelect" class="language-select">
+          <option value="cs" data-i18n="lang_cs">Čeština</option>
+          <option value="ru" data-i18n="lang_ru">Русский</option>
+          <option value="en" data-i18n="lang_en">English</option>
+        </select>
+        <button id="logoutBtn" class="btn ghost" data-i18n="nav_logout">Выйти</button>
+      </nav>
+    </header>
+
+    <main class="layout-two-columns">
+      <section class="column-main">
+        <div class="card">
+          <h2>Messages</h2>
+          <div class="users-list" style="margin-bottom: 8px;">
+            <input type="text" id="messagesSearchInput" placeholder="Найти пользователя..." style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid #d1d5db;">
+            <div id="messagesUsersList" class="users-list" style="margin-top: 8px;"></div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="column-side">
+        <div class="card">
+          <h3>Dialog</h3>
+          <div id="messagesConversationHeader" class="muted" style="margin-bottom: 6px;">Выберите пользователя слева</div>
+          <div id="messagesConversation" style="max-height: 360px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 8px; padding: 8px; margin-bottom: 8px;"></div>
+          <div>
+            <textarea id="messagesInput" rows="3" placeholder="Написать сообщение..." style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid #d1d5db;"></textarea>
+            <button id="messagesSendBtn" class="btn primary small" type="button" style="margin-top: 6px;">Send</button>
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <footer class="app-footer">
+      <p>Messages are stored on the server (SQLite).</p>
+    </footer>
+  </div>
+
+  <script src="translations.js"></script>
+  <script src="api.js"></script>
+  <script src="script_api.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      if (!window.App) return;
+      App.requireAuth();
+      App.renderMessagesPage();
+      if (window.I18n) {
+        window.I18n.apply(document);
+      }
+    });
+  </script>
+</body>
+</html>
+

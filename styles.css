@@ -176,6 +176,10 @@ textarea:focus {
   gap: 8px;
 }
 
+.nav-link-feed {
+  margin-right: auto;
+}
+
 .language-select {
   border-radius: 999px;
   border: 1px solid #d1d5db;
@@ -308,6 +312,31 @@ textarea:focus {
   font-weight: 600;
 }
 
+.logo-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  margin-right: 8px;
+  vertical-align: middle;
+  object-fit: cover;
+}
+
+.brand-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.brand-logo-text {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #4b5563;
+  border-radius: 999px;
+  padding: 2px 8px;
+  border: 1px solid #d1d5db;
+  background: #f9fafb;
+}
+
 .avatar img {
   width: 100%;
   height: 100%;
@@ -392,6 +421,80 @@ textarea:focus {
   cursor: zoom-out;
   z-index: 1000;
   position: relative;
+}
+
+/* Реакции к посту */
+.post-reactions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.reaction-button {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 1.1rem;
+  padding: 2px 4px;
+  border-radius: 6px;
+  line-height: 1;
+}
+
+.reaction-button:hover {
+  background: #f3f4f6;
+}
+
+.reaction-button.reaction-active {
+  background: #fee2e2;
+  box-shadow: 0 0 0 1px #f97373;
+}
+
+.post-reactions-count {
+  margin-left: 4px;
+}
+
+/* Мини-профиль в правой колонке */
+.mini-profile {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.mini-avatar {
+  width: 36px;
+  height: 36px;
+  font-size: 0.9rem;
+}
+
+.mini-profile-main {
+  display: flex;
+  flex-direction: column;
+}
+
+.mini-profile-name {
+  font-weight: 600;
+}
+
+.mini-profile-username {
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+
+.mini-profile-stats {
+  display: flex;
+  gap: 12px;
+  font-size: 0.8rem;
+  margin-bottom: 6px;
+}
+
+.mini-profile-bio textarea {
+  width: 100%;
+  padding: 6px;
+  border-radius: 6px;
+  border: 1px solid #d1d5db;
+  font-size: 0.85rem;
+  resize: vertical;
 }
 
 /* Стили для комментариев */

@@ -133,6 +133,21 @@ def init_database():
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_followers_followerId ON Followers(followerId)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_followers_followingId ON Followers(followingId)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_files_postId ON Files(postId)')
+
+    # Таблица сообщений
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS Messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            fromUserId INTEGER NOT NULL,
+            toUserId INTEGER NOT NULL,
+            content TEXT NOT NULL,
+            createdAt TEXT NOT NULL,
+            FOREIGN KEY (fromUserId) REFERENCES Users(id) ON DELETE CASCADE,
+            FOREIGN KEY (toUserId) REFERENCES Users(id) ON DELETE CASCADE
+        )
+    ''')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_messages_from_to ON Messages(fromUserId, toUserId)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_messages_to ON Messages(toUserId)')
     
     conn.commit()
     conn.close()
