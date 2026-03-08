@@ -1,6 +1,5 @@
 """
-Flask приложение для социальной сети.
-Предоставляет REST API для всех операций фронтенда.
+Flask app for the social network. REST API for the frontend.
 """
 
 from flask import Flask, request, jsonify, session, send_from_directory
@@ -12,72 +11,31 @@ from database import get_db_connection, init_database
 from file_handler import save_file, delete_file, get_file_type
 
 app = Flask(__name__)
-app.secret_key = 'your-secret-key-change-in-production'  # В продакшене используйте случайный ключ
+app.secret_key = 'your-secret-key-change-in-production'
 app.config['UPLOAD_FOLDER'] = 'uploads'
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # Максимальный размер файла 16MB
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 
-# Корневая папка проекта (где лежат HTML, CSS, JS)
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
-
-# Включаем CORS для работы фронтенда
 CORS(app, supports_credentials=True)
-
-# Инициализируем базу данных при запуске
 init_database()
 
 
-# ========= Вспомогательные функции =========
-
 def hash_password(password):
-    """
-    Хеширует пароль используя SHA-256.
-    
-    Args:
-        password (str): Пароль в открытом виде
-        
-    Returns:
-        str: Хеш пароля
-    """
     return hashlib.sha256(password.encode()).hexdigest()
 
 
 def require_auth():
-    """
-    Проверяет, авторизован ли пользователь.
-    
-    Returns:
-        int: ID пользователя или None
-    """
     return session.get('user_id')
 
 
 def get_current_user_id():
-    """
-    Получает ID текущего пользователя из сессии.
-    
-    Returns:
-        int: ID пользователя или None
-    """
     return session.get('user_id')
 
 
-# ========= API Endpoints =========
+# --- API ---
 
 @app.route('/api/register', methods=['POST'])
 def register():
-    """
-    Регистрация нового пользователя.
-    
-    Request body:
-        {
-            "username": "string",
-            "email": "string",
-            "password": "string"
-        }
-    
-    Returns:
-        JSON: {"success": bool, "message": "string", "user": {...}}
-    """
     data = request.get_json()
     username = data.get('username', '').strip()
     email = data.get('email', '').strip()
@@ -91,14 +49,12 @@ def register():
     
     conn = get_db_connection()
     cursor = conn.cursor()
-    
-    # Проверяем, существует ли пользователь
+
     cursor.execute('SELECT id FROM Users WHERE username = ? OR email = ?', (username, email))
     if cursor.fetchone():
         conn.close()
         return jsonify({'success': False, 'message': 'Пользователь с таким username или email уже существует'}), 400
     
-    # Создаем нового пользователя
     password_hash = hash_password(password)
     created_at = datetime.now().isoformat()
     
@@ -110,10 +66,8 @@ def register():
     user_id = cursor.lastrowid
     conn.commit()
     
-    # Автоматически логиним пользователя
     session['user_id'] = user_id
     
-    # Получаем данные пользователя
     cursor.execute('SELECT id, username, email, bio, avatar, createdAt FROM Users WHERE id = ?', (user_id,))
     user = cursor.fetchone()
     conn.close()
@@ -127,18 +81,6 @@ def register():
 
 @app.route('/api/login', methods=['POST'])
 def login():
-    """
-    Вход пользователя в систему.
-    
-    Request body:
-        {
-            "identifier": "string",  # username или email
-            "password": "string"
-        }
-    
-    Returns:
-        JSON: {"success": bool, "message": "string", "user": {...}}
-    """
     data = request.get_json()
     identifier = data.get('identifier', '').strip()
     password = data.get('password', '')
@@ -148,8 +90,6 @@ def login():
     
     password_hash = hash_password(password)
     conn = get_db_connection()
-    
-    # Ищем пользователя по username или email
     cursor = conn.cursor()
     cursor.execute('''
         SELECT id, username, email, bio, avatar, createdAt
@@ -163,7 +103,6 @@ def login():
     if not user:
         return jsonify({'success': False, 'message': 'Неверный логин или пароль'}), 401
     
-    # Сохраняем ID пользователя в сессии
     session['user_id'] = user['id']
     
     return jsonify({
@@ -175,24 +114,12 @@ def login():
 
 @app.route('/api/logout', methods=['POST'])
 def logout():
-    """
-    Выход пользователя из системы.
-    
-    Returns:
-        JSON: {"success": bool, "message": "string"}
-    """
     session.pop('user_id', None)
     return jsonify({'success': True, 'message': 'Выход выполнен'})
 
 
 @app.route('/api/current-user', methods=['GET'])
 def get_current_user():
-    """
-    Получает информацию о текущем авторизованном пользователе.
-    
-    Returns:
-        JSON: {"success": bool, "user": {...} или null}
-    """
     user_id = get_current_user_id()
     if not user_id:
         return jsonify({'success': False, 'user': None}), 401
@@ -216,15 +143,6 @@ def get_current_user():
 
 @app.route('/api/users/<int:user_id>', methods=['GET'])
 def get_user(user_id):
-    """
-    Получает информацию о пользователе по ID.
-    
-    Args:
-        user_id (int): ID пользователя
-        
-    Returns:
-        JSON: {"success": bool, "user": {...}}
-    """
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('''
@@ -304,9 +222,7 @@ def get_posts():
     
     posts = [dict(row) for row in cursor.fetchall()]
     
-    # Добавляем информацию о файлах, лайках, комментариях и репостах
     for post in posts:
-        # Файлы
         cursor.execute('''
             SELECT id, fileName, filePath, fileType
             FROM Files
@@ -314,28 +230,31 @@ def get_posts():
         ''', (post['id'],))
         post['files'] = [dict(row) for row in cursor.fetchall()]
         
-        # Лайки
-        cursor.execute('SELECT COUNT(*) as count FROM Likes WHERE postId = ?', (post['id'],))
-        post['likesCount'] = cursor.fetchone()['count']
+        cursor.execute('SELECT reactionType, COUNT(*) as cnt FROM Likes WHERE postId = ? GROUP BY reactionType', (post['id'],))
+        post['reactionCounts'] = {'heart': 0, 'fire': 0, 'laugh': 0, 'wow': 0}
+        for row in cursor.fetchall():
+            t = (row['reactionType'] or 'heart').lower()
+            if t in post['reactionCounts']:
+                post['reactionCounts'][t] = row['cnt']
+        post['likesCount'] = sum(post['reactionCounts'].values())
         
-        # Комментарии
         cursor.execute('SELECT COUNT(*) as count FROM Comments WHERE postId = ?', (post['id'],))
         post['commentsCount'] = cursor.fetchone()['count']
         
-        # Репосты
         cursor.execute('SELECT COUNT(*) as count FROM Reposts WHERE originalPostId = ?', (post['id'],))
         post['repostsCount'] = cursor.fetchone()['count']
         
-        # Проверяем, лайкнул ли текущий пользователь
         current_user_id = get_current_user_id()
         if current_user_id:
-            cursor.execute('SELECT id FROM Likes WHERE postId = ? AND userId = ?', (post['id'], current_user_id))
-            post['liked'] = cursor.fetchone() is not None
-            
+            cursor.execute('SELECT reactionType FROM Likes WHERE postId = ? AND userId = ?', (post['id'], current_user_id))
+            r = cursor.fetchone()
+            post['liked'] = r is not None
+            post['currentUserReaction'] = (r['reactionType'] or 'heart').lower() if r else None
             cursor.execute('SELECT id FROM Reposts WHERE originalPostId = ? AND userId = ?', (post['id'], current_user_id))
             post['reposted'] = cursor.fetchone() is not None
         else:
             post['liked'] = False
+            post['currentUserReaction'] = None
             post['reposted'] = False
     
     conn.close()
@@ -345,16 +264,6 @@ def get_posts():
 
 @app.route('/api/posts', methods=['POST'])
 def create_post():
-    """
-    Создает новый пост.
-    
-    Request body (form-data):
-        content (str): Текст поста
-        file (file, optional): Прикрепленный файл
-        
-    Returns:
-        JSON: {"success": bool, "message": "string", "post": {...}}
-    """
     user_id = require_auth()
     if not user_id:
         return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
@@ -376,7 +285,6 @@ def create_post():
     
     post_id = cursor.lastrowid
     
-    # Сохраняем файл, если он есть
     file_info = None
     if file:
         file_info = save_file(file, user_id, post_id)
@@ -389,7 +297,6 @@ def create_post():
     
     conn.commit()
     
-    # Получаем созданный пост
     cursor.execute('''
         SELECT id, userId, content, createdAt, attentionSum, viewsCount
         FROM Posts
@@ -397,17 +304,18 @@ def create_post():
     ''', (post_id,))
     post = dict(cursor.fetchone())
     
-    # Добавляем информацию о файлах
     cursor.execute('''
         SELECT id, fileName, filePath, fileType
         FROM Files
         WHERE postId = ?
     ''', (post_id,))
     post['files'] = [dict(row) for row in cursor.fetchall()]
+    post['reactionCounts'] = {'heart': 0, 'fire': 0, 'laugh': 0, 'wow': 0}
     post['likesCount'] = 0
     post['commentsCount'] = 0
     post['repostsCount'] = 0
     post['liked'] = False
+    post['currentUserReaction'] = None
     post['reposted'] = False
     
     conn.close()
@@ -421,15 +329,6 @@ def create_post():
 
 @app.route('/api/posts/<int:post_id>', methods=['DELETE'])
 def delete_post(post_id):
-    """
-    Удаляет пост.
-    
-    Args:
-        post_id (int): ID поста
-        
-    Returns:
-        JSON: {"success": bool, "message": "string"}
-    """
     user_id = require_auth()
     if not user_id:
         return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
@@ -437,7 +336,6 @@ def delete_post(post_id):
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # Проверяем, что пост принадлежит пользователю
     cursor.execute('SELECT userId FROM Posts WHERE id = ?', (post_id,))
     post = cursor.fetchone()
     
@@ -449,13 +347,11 @@ def delete_post(post_id):
         conn.close()
         return jsonify({'success': False, 'message': 'Нет прав на удаление'}), 403
     
-    # Удаляем файлы поста
     cursor.execute('SELECT filePath FROM Files WHERE postId = ?', (post_id,))
     files = cursor.fetchall()
     for file_row in files:
         delete_file(file_row['filePath'])
     
-    # Удаляем пост (каскадно удалятся лайки, комментарии, репосты, файлы)
     cursor.execute('DELETE FROM Posts WHERE id = ?', (post_id,))
     conn.commit()
     conn.close()
@@ -465,67 +361,75 @@ def delete_post(post_id):
 
 @app.route('/api/posts/<int:post_id>/like', methods=['POST'])
 def toggle_like(post_id):
-    """
-    Переключает лайк на посте.
-    
-    Args:
-        post_id (int): ID поста
-        
-    Returns:
-        JSON: {"success": bool, "liked": bool, "likesCount": int}
-    """
     user_id = require_auth()
     if not user_id:
         return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
-    
+
+    data = (request.get_json() or {})
+    reaction_type = (data.get('reactionType') or 'heart').strip().lower()
+    if reaction_type not in ('heart', 'fire', 'laugh', 'wow'):
+        reaction_type = 'heart'
+
     conn = get_db_connection()
     cursor = conn.cursor()
-    
-    # Проверяем, существует ли пост
+
     cursor.execute('SELECT id FROM Posts WHERE id = ?', (post_id,))
     if not cursor.fetchone():
         conn.close()
         return jsonify({'success': False, 'message': 'Пост не найден'}), 404
-    
-    # Проверяем, есть ли уже лайк
-    cursor.execute('SELECT id FROM Likes WHERE postId = ? AND userId = ?', (post_id, user_id))
-    like = cursor.fetchone()
-    
-    created_at = datetime.now().isoformat()
-    
-    if like:
-        # Удаляем лайк
-        cursor.execute('DELETE FROM Likes WHERE postId = ? AND userId = ?', (post_id, user_id))
-        liked = False
-    else:
-        # Добавляем лайк
-        cursor.execute('''
-            INSERT INTO Likes (postId, userId, createdAt)
-            VALUES (?, ?, ?)
-        ''', (post_id, user_id, created_at))
-        liked = True
-    
-    # Обновляем метрику внимания.
-    # attentionSum — суммарное "внимание" в секундах (условная метрика),
-    # viewsCount — число зафиксированных взаимодействий/просмотров.
-    # Среднее внимание на посте вычисляется как attentionSum / viewsCount.
-    cursor.execute('SELECT COUNT(*) as count FROM Likes WHERE postId = ?', (post_id,))
-    likes_count = cursor.fetchone()['count']
 
-    attention_delta_seconds = 5 if liked else 2  # лайк обычно означает больше вовлечения, чем анлайк
+    cursor.execute('SELECT id, reactionType FROM Likes WHERE postId = ? AND userId = ?', (post_id, user_id))
+    like = cursor.fetchone()
+    created_at = datetime.now().isoformat()
+
+    cursor.execute('SELECT id, reactionType FROM Likes WHERE postId = ? AND userId = ?', (post_id, user_id))
+    like = cursor.fetchone()
+    created_at = datetime.now().isoformat()
+
+    if like:
+        old_type = (like['reactionType'] or 'heart').lower()
+        if old_type == reaction_type:
+            cursor.execute('DELETE FROM Likes WHERE postId = ? AND userId = ?', (post_id, user_id))
+            liked = False
+            current_reaction = None
+        else:
+            cursor.execute('UPDATE Likes SET reactionType = ? WHERE postId = ? AND userId = ?', (reaction_type, post_id, user_id))
+            liked = True
+            current_reaction = reaction_type
+    else:
+        cursor.execute('''
+            INSERT INTO Likes (postId, userId, reactionType, createdAt)
+            VALUES (?, ?, ?, ?)
+        ''', (post_id, user_id, reaction_type, created_at))
+        liked = True
+        current_reaction = reaction_type
+
+    cursor.execute('SELECT reactionType, COUNT(*) as cnt FROM Likes WHERE postId = ? GROUP BY reactionType', (post_id,))
+    counts = {'heart': 0, 'fire': 0, 'laugh': 0, 'wow': 0}
+    for row in cursor.fetchall():
+        t = (row['reactionType'] or 'heart').lower()
+        if t in counts:
+            counts[t] = row['cnt']
+
+    if not liked:
+        cursor.execute('SELECT reactionType FROM Likes WHERE postId = ? AND userId = ?', (post_id, user_id))
+        r = cursor.fetchone()
+        current_reaction = (r['reactionType'] or 'heart').lower() if r else None
+    # current_reaction already set when liked
+
+    attention_delta = 5 if liked else 2
     cursor.execute('''
-        UPDATE Posts
-        SET attentionSum = attentionSum + ?, viewsCount = viewsCount + 1
-        WHERE id = ?
-    ''', (attention_delta_seconds, post_id))
-    
+        UPDATE Posts SET attentionSum = attentionSum + ?, viewsCount = viewsCount + 1 WHERE id = ?
+    ''', (attention_delta, post_id))
+
     conn.commit()
     conn.close()
-    
+
     return jsonify({
         'success': True,
         'liked': liked,
-        'likesCount': likes_count
+        'reactionCounts': counts,
+        'currentUserReaction': current_reaction
     })
 
 
@@ -591,7 +495,6 @@ def create_comment(post_id):
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # Проверяем, существует ли пост
     cursor.execute('SELECT id FROM Posts WHERE id = ?', (post_id,))
     if not cursor.fetchone():
         conn.close()
@@ -605,7 +508,6 @@ def create_comment(post_id):
     
     comment_id = cursor.lastrowid
     
-    # Получаем созданный комментарий с информацией о пользователе
     cursor.execute('''
         SELECT c.id, c.postId, c.userId, c.content, c.createdAt,
                u.username, u.avatar
@@ -616,7 +518,7 @@ def create_comment(post_id):
     
     comment = dict(cursor.fetchone())
     
-    # Комментарий — сильный сигнал внимания: увеличиваем суммарное внимание и фиксируем взаимодействие.
+    # comment = strong engagement signal, bump attention
     cursor.execute('''
         UPDATE Posts
         SET attentionSum = attentionSum + ?, viewsCount = viewsCount + 1
@@ -635,15 +537,6 @@ def create_comment(post_id):
 
 @app.route('/api/posts/<int:post_id>/repost', methods=['POST'])
 def create_repost(post_id):
-    """
-    Создает репост поста.
-    
-    Args:
-        post_id (int): ID оригинального поста
-        
-    Returns:
-        JSON: {"success": bool, "message": "string", "repost": {...}}
-    """
     user_id = require_auth()
     if not user_id:
         return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
@@ -651,13 +544,11 @@ def create_repost(post_id):
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # Проверяем, существует ли пост
     cursor.execute('SELECT id FROM Posts WHERE id = ?', (post_id,))
     if not cursor.fetchone():
         conn.close()
         return jsonify({'success': False, 'message': 'Пост не найден'}), 404
     
-    # Проверяем, не репостил ли уже пользователь этот пост
     cursor.execute('SELECT id FROM Reposts WHERE originalPostId = ? AND userId = ?', (post_id, user_id))
     if cursor.fetchone():
         conn.close()
@@ -671,7 +562,7 @@ def create_repost(post_id):
     
     repost_id = cursor.lastrowid
     
-    # Репост — тоже сильный сигнал внимания.
+    # repost = engagement signal
     cursor.execute('''
         UPDATE Posts
         SET attentionSum = attentionSum + ?, viewsCount = viewsCount + 1
@@ -717,13 +608,11 @@ def follow_user(user_id):
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # Проверяем, существует ли пользователь
     cursor.execute('SELECT id FROM Users WHERE id = ?', (user_id,))
     if not cursor.fetchone():
         conn.close()
         return jsonify({'success': False, 'message': 'Пользователь не найден'}), 404
     
-    # Проверяем, подписан ли уже
     cursor.execute('SELECT * FROM Followers WHERE followerId = ? AND followingId = ?', 
                    (current_user_id, user_id))
     existing = cursor.fetchone()
@@ -731,12 +620,10 @@ def follow_user(user_id):
     created_at = datetime.now().isoformat()
     
     if existing:
-        # Отписываемся
         cursor.execute('DELETE FROM Followers WHERE followerId = ? AND followingId = ?',
                       (current_user_id, user_id))
         following = False
     else:
-        # Подписываемся
         cursor.execute('''
             INSERT INTO Followers (followerId, followingId, createdAt)
             VALUES (?, ?, ?)
@@ -754,15 +641,6 @@ def follow_user(user_id):
 
 @app.route('/api/users/<int:user_id>/followers', methods=['GET'])
 def get_followers(user_id):
-    """
-    Получает список подписчиков пользователя.
-    
-    Args:
-        user_id (int): ID пользователя
-        
-    Returns:
-        JSON: {"success": bool, "users": [...]}
-    """
     conn = get_db_connection()
     cursor = conn.cursor()
     
@@ -781,15 +659,6 @@ def get_followers(user_id):
 
 @app.route('/api/users/<int:user_id>/following', methods=['GET'])
 def get_following(user_id):
-    """
-    Получает список подписок пользователя.
-    
-    Args:
-        user_id (int): ID пользователя
-        
-    Returns:
-        JSON: {"success": bool, "users": [...]}
-    """
     conn = get_db_connection()
     cursor = conn.cursor()
     
@@ -808,12 +677,6 @@ def get_following(user_id):
 
 @app.route('/api/messages', methods=['GET'])
 def get_messages():
-    """
-    Получает сообщения между текущим пользователем и другим пользователем.
-
-    Query params:
-        withUser (int): ID собеседника
-    """
     current_user_id = require_auth()
     if not current_user_id:
         return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
@@ -851,15 +714,6 @@ def get_messages():
 
 @app.route('/api/messages', methods=['POST'])
 def send_message():
-    """
-    Отправляет сообщение другому пользователю.
-
-    Request body:
-        {
-            "toUserId": int,
-            "content": "string"
-        }
-    """
     from_user_id = require_auth()
     if not from_user_id:
         return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
@@ -912,33 +766,100 @@ def send_message():
     return jsonify({'success': True, 'message': message})
 
 
+@app.route('/api/messages/conversations', methods=['GET'])
+def get_conversations():
+    """
+    Список пользователей, с которыми есть переписка (для быстрого доступа).
+    """
+    current_user_id = require_auth()
+    if not current_user_id:
+        return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT DISTINCT
+            CASE WHEN fromUserId = ? THEN toUserId ELSE fromUserId END AS partnerId
+        FROM Messages
+        WHERE fromUserId = ? OR toUserId = ?
+    ''', (current_user_id, current_user_id, current_user_id))
+    partner_ids = [row['partnerId'] for row in cursor.fetchall()]
+    if not partner_ids:
+        conn.close()
+        return jsonify({'success': True, 'users': []})
+
+    ph = ','.join(['?'] * len(partner_ids))
+    cursor.execute(f'''
+        SELECT id, username, email, bio, avatar, createdAt
+        FROM Users
+        WHERE id IN ({ph})
+    ''', partner_ids)
+    users = [dict(row) for row in cursor.fetchall()]
+    # Последнее сообщение для сортировки
+    for u in users:
+        cursor.execute('''
+            SELECT createdAt FROM Messages
+            WHERE (fromUserId = ? AND toUserId = ?) OR (fromUserId = ? AND toUserId = ?)
+            ORDER BY createdAt DESC LIMIT 1
+        ''', (current_user_id, u['id'], u['id'], current_user_id))
+        r = cursor.fetchone()
+        u['lastMessageAt'] = r['createdAt'] if r else None
+    users.sort(key=lambda x: (x.get('lastMessageAt') or ''), reverse=True)
+    conn.close()
+    return jsonify({'success': True, 'users': users})
+
+
+@app.route('/api/stats', methods=['GET'])
+def get_network_stats():
+    """Статистика сети: количество пользователей, постов, комментариев."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT COUNT(*) as c FROM Users')
+    users_count = cursor.fetchone()['c']
+    cursor.execute('SELECT COUNT(*) as c FROM Posts')
+    posts_count = cursor.fetchone()['c']
+    cursor.execute('SELECT COUNT(*) as c FROM Comments')
+    comments_count = cursor.fetchone()['c']
+    conn.close()
+    return jsonify({
+        'success': True,
+        'stats': {
+            'usersCount': users_count,
+            'postsCount': posts_count,
+            'commentsCount': comments_count
+        }
+    })
+
+
+@app.route('/api/users/recent', methods=['GET'])
+def get_recent_users():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT id, username, email, bio, avatar, createdAt
+        FROM Users
+        ORDER BY createdAt DESC
+        LIMIT 5
+    ''')
+    users = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return jsonify({'success': True, 'users': users})
+
+
 @app.route('/api/users/<int:user_id>/stats', methods=['GET'])
 def get_user_stats(user_id):
-    """
-    Получает статистику пользователя.
-    
-    Args:
-        user_id (int): ID пользователя
-        
-    Returns:
-        JSON: {"success": bool, "stats": {...}}
-    """
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # Количество постов
     cursor.execute('SELECT COUNT(*) as count FROM Posts WHERE userId = ?', (user_id,))
     posts_count = cursor.fetchone()['count']
     
-    # Количество подписчиков
     cursor.execute('SELECT COUNT(*) as count FROM Followers WHERE followingId = ?', (user_id,))
     followers_count = cursor.fetchone()['count']
     
-    # Количество подписок
     cursor.execute('SELECT COUNT(*) as count FROM Followers WHERE followerId = ?', (user_id,))
     following_count = cursor.fetchone()['count']
     
-    # Количество полученных лайков
     cursor.execute('''
         SELECT COUNT(*) as count
         FROM Likes l
@@ -947,7 +868,6 @@ def get_user_stats(user_id):
     ''', (user_id,))
     likes_received = cursor.fetchone()['count']
     
-    # Количество полученных комментариев
     cursor.execute('''
         SELECT COUNT(*) as count
         FROM Comments c
@@ -956,7 +876,6 @@ def get_user_stats(user_id):
     ''', (user_id,))
     comments_received = cursor.fetchone()['count']
     
-    # Количество полученных репостов
     cursor.execute('''
         SELECT COUNT(*) as count
         FROM Reposts r
@@ -965,7 +884,7 @@ def get_user_stats(user_id):
     ''', (user_id,))
     reposts_received = cursor.fetchone()['count']
     
-    # Среднее внимание на постах (секунды): SUM(attentionSum) / SUM(viewsCount)
+    # avg attention = SUM(attentionSum)/SUM(viewsCount) in seconds
     cursor.execute('''
         SELECT COALESCE(SUM(attentionSum), 0) as attSum, COALESCE(SUM(viewsCount), 0) as viewSum
         FROM Posts
@@ -994,12 +913,6 @@ def get_user_stats(user_id):
 
 @app.route('/api/recommendations/users', methods=['GET'])
 def get_user_recommendations():
-    """
-    Получает рекомендации пользователей для текущего пользователя.
-    
-    Returns:
-        JSON: {"success": bool, "users": [...]}
-    """
     current_user_id = require_auth()
     if not current_user_id:
         return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
@@ -1221,27 +1134,32 @@ def get_post_recommendations():
     scored.sort(key=lambda x: x['score'], reverse=True)
     top_posts = [item['post'] for item in scored[:20]]
 
-    # Добавляем информацию о файлах + liked/reposted для текущего пользователя
+    # Добавляем информацию о файлах, реакциях по типам, liked/reposted для текущего пользователя
     for post in top_posts:
         post_id = post['id']
 
         cursor.execute('SELECT id, fileName, filePath, fileType FROM Files WHERE postId = ?', (post_id,))
         post['files'] = [dict(r) for r in cursor.fetchall()]
 
-        post['likesCount'] = int(post.get('likes') or 0)
+        cursor.execute('SELECT reactionType, COUNT(*) as cnt FROM Likes WHERE postId = ? GROUP BY reactionType', (post_id,))
+        post['reactionCounts'] = {'heart': 0, 'fire': 0, 'laugh': 0, 'wow': 0}
+        for r in cursor.fetchall():
+            t = (r['reactionType'] or 'heart').lower()
+            if t in post['reactionCounts']:
+                post['reactionCounts'][t] = r['cnt']
+        post['likesCount'] = sum(post['reactionCounts'].values())
         post['commentsCount'] = int(post.get('comments') or 0)
         post['repostsCount'] = int(post.get('reposts') or 0)
 
-        cursor.execute('SELECT 1 FROM Likes WHERE postId = ? AND userId = ? LIMIT 1', (post_id, current_user_id))
-        post['liked'] = cursor.fetchone() is not None
+        cursor.execute('SELECT reactionType FROM Likes WHERE postId = ? AND userId = ? LIMIT 1', (post_id, current_user_id))
+        r = cursor.fetchone()
+        post['liked'] = r is not None
+        post['currentUserReaction'] = (r['reactionType'] or 'heart').lower() if r else None
 
         cursor.execute('SELECT 1 FROM Reposts WHERE originalPostId = ? AND userId = ? LIMIT 1', (post_id, current_user_id))
         post['reposted'] = cursor.fetchone() is not None
 
-        # для дебага/отладки — можно убрать на фронте, если не нужно
         post['score'] = next((x['score'] for x in scored if x['post']['id'] == post_id), None)
-
-        # Убираем вспомогательные поля likes/comments/reposts (чтобы фронту было проще)
         post.pop('likes', None)
         post.pop('comments', None)
         post.pop('reposts', None)

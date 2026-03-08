@@ -2,6 +2,7 @@
 <html lang="cs">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title data-i18n="feed_title">My Bubble — Lenta</title>
   <link rel="stylesheet" href="styles.css">
   <link rel="icon" type="image/png" href="Icons/Logo.png">
@@ -15,7 +16,8 @@
           <span class="brand-logo-text">Logo</span>
           <span data-i18n="feed_title">Tell ur story</span>
         </h1>
-        <p class="subtitle" data-i18n="feed_subtitle">Лента постов</p>
+        <p class="subtitle subtitle-tagline" id="feedSubtitleTagline">Share your moments with the world</p>
+        <p class="subtitle subtitle-phrase" id="feedSubtitlePhrase" data-i18n="feed_subtitle">Лента постов</p>
       </div>
       <nav class="nav">
         <a href="feed.html" class="nav-link nav-link-feed active" data-i18n="nav_feed">Лента</a>
@@ -32,6 +34,17 @@
 
     <main class="layout-two-columns">
       <section class="column-main">
+        <div class="card" id="networkStatsCard">
+          <h3>Network stats</h3>
+          <div class="network-stats">
+            <div class="stat"><span id="statUsers">0</span> Users</div>
+            <div class="stat"><span id="statPosts">0</span> Posts</div>
+            <div class="stat"><span id="statComments">0</span> Comments</div>
+          </div>
+          <h4 style="margin-top: 12px; font-size: 0.95rem;">Last registered users</h4>
+          <div id="lastRegisteredUsers" class="users-list"></div>
+        </div>
+
         <div class="card">
           <h2 data-i18n="create_post_title">Создать пост</h2>
           <form id="postForm">

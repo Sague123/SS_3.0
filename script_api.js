@@ -119,12 +119,12 @@ function getRandomFeedSubtitle() {
 }
 
 /**
- * Обновляет заголовок ленты случайной фразой
+ * Обновляет заголовок ленты случайной фразой из texts-db.js (элемент #feedSubtitlePhrase)
  */
 function updateFeedSubtitle() {
-  const subtitleEl = document.querySelector('.subtitle[data-i18n="feed_subtitle"]');
-  if (subtitleEl) {
-    subtitleEl.textContent = getRandomFeedSubtitle();
+  const el = document.getElementById('feedSubtitlePhrase');
+  if (el) {
+    el.textContent = getRandomFeedSubtitle();
   }
 }
 
@@ -231,10 +231,11 @@ function getFileUrl(filePath) {
  */
 async function renderPost(post, currentUserId) {
   const author = await getUserById(post.userId);
-  const likesCount = post.likesCount || 0;
+  const reactionCounts = post.reactionCounts || { heart: 0, fire: 0, laugh: 0, wow: 0 };
   const commentsCount = post.commentsCount || 0;
   const repostsCount = post.repostsCount || 0;
-  let liked = !!post.liked;
+  let currentUserReaction = post.currentUserReaction || null;
+  const liked = !!post.liked;
   const reposted = post.reposted || false;
   const canDelete = String(post.userId) === String(currentUserId);
 
@@ -242,12 +243,8 @@ async function renderPost(post, currentUserId) {
   div.className = 'post';
   div.dataset.postId = post.id;
 
-  const likesWord = I18n.t('likes_word');
-  const commentsWord = I18n.t('comments_word') || 'комментариев';
-  const repostsWord = I18n.t('reposts_word') || 'репостов';
   const deleteText = I18n.t('delete_post');
-  const commentText = 'Comment';
-  const repostText = 'Repost';
+  const iconsBase = 'Icons';
 
   // Обработка файлов
   let attachmentHtml = '';
@@ -275,6 +272,18 @@ async function renderPost(post, currentUserId) {
     }
   }
 
+  const reactionRow = [
+    { key: 'heart', emoji: '❤️' },
+    { key: 'fire', emoji: '🔥' },
+    { key: 'laugh', emoji: '😂' },
+    { key: 'wow', emoji: '😮' }
+  ].map(r => `
+    <div class="post-reaction-item" style="display: inline-flex; flex-direction: column; align-items: center; margin-right: 8px;">
+      <button type="button" class="reaction-button" data-reaction="${r.key}" ${currentUserReaction === r.key ? 'data-active="1"' : ''}>${r.emoji}</button>
+      <span class="reaction-count" data-reaction="${r.key}">${reactionCounts[r.key] || 0}</span>
+    </div>
+  `).join('');
+
   div.innerHTML = `
     <div class="post-header">
       <div>
@@ -285,23 +294,22 @@ async function renderPost(post, currentUserId) {
     </div>
     <div class="post-content">${escapeHtml(post.content || '')}</div>
     ${attachmentHtml}
-    <div class="post-actions">
-      <span class="muted" style="margin-right: 4px;">Reactions:</span>
-      <div class="post-reactions">
-        <button class="reaction-button" data-reaction="heart">❤️</button>
-        <button class="reaction-button" data-reaction="fire">🔥</button>
-        <button class="reaction-button" data-reaction="laugh">😂</button>
-        <button class="reaction-button" data-reaction="wow">😮</button>
+    <div class="post-actions" style="display: flex; align-items: center; flex-wrap: wrap; gap: 8px;">
+      <div class="post-reactions" style="display: flex; align-items: center; gap: 4px;">
+        ${reactionRow}
       </div>
-      <span class="post-reactions-count">${likesCount} ${likesWord}</span>
-      <button class="link-button" data-action="comment" style="margin-left: 12px;">
-        ${commentText}
-      </button>
-      <span>${commentsCount} ${commentsWord}</span>
-      <button class="link-button" data-action="repost" style="margin-left: 12px;" ${reposted ? 'data-reposted="true"' : ''}>
-        ${repostText}
-      </button>
-      <span>${repostsCount} ${repostsWord}</span>
+      <div class="post-action-block" style="display: inline-flex; flex-direction: column; align-items: center;">
+        <button type="button" class="link-button post-action-btn" data-action="comment" style="padding: 2px;">
+          <img src="${iconsBase}/Comment.png" alt="Comment" class="post-action-icon">
+        </button>
+        <span class="post-action-count" data-action="comment">${commentsCount}</span>
+      </div>
+      <div class="post-action-block" style="display: inline-flex; flex-direction: column; align-items: center;">
+        <button type="button" class="link-button post-action-btn" data-action="repost" style="padding: 2px;" ${reposted ? 'data-reposted="true"' : ''}>
+          <img src="${iconsBase}/Repost.png" alt="Repost" class="post-action-icon">
+        </button>
+        <span class="post-action-count" data-action="repost">${repostsCount}</span>
+      </div>
     </div>
     <div class="post-comments" id="comments-${post.id}" style="margin-top: 12px; display: none;">
       <div class="comments-list" id="comments-list-${post.id}"></div>
@@ -314,86 +322,30 @@ async function renderPost(post, currentUserId) {
     </div>
   `;
 
-  // Реакции (эмодзи вместо лайка) с локальным сохранением типа реакции
-  const POST_REACTIONS_KEY = 'postReactions';
-  function loadPostReactions() {
-    try {
-      const raw = localStorage.getItem(POST_REACTIONS_KEY);
-      return raw ? JSON.parse(raw) : {};
-    } catch {
-      return {};
-    }
-  }
-  function savePostReactions(map) {
-    try {
-      localStorage.setItem(POST_REACTIONS_KEY, JSON.stringify(map));
-    } catch {
-      // ignore
-    }
-  }
-  const reactionsMap = loadPostReactions();
-  const currentReaction = reactionsMap[post.id];
-
-  const reactionButtons = Array.from(div.querySelectorAll('.reaction-button'));
-  const reactionsCountSpan = div.querySelector('.post-reactions-count');
-
-  if (currentReaction && liked) {
-    reactionButtons.forEach(btn => {
-      if (btn.dataset.reaction === currentReaction) {
-        btn.classList.add('reaction-active');
-      }
+  // Обновление счётчиков реакций в DOM
+  function updateReactionCounts(counts, current) {
+    ['heart', 'fire', 'laugh', 'wow'].forEach(key => {
+      const span = div.querySelector(`.reaction-count[data-reaction="${key}"]`);
+          if (span) span.textContent = (counts && counts[key]) || 0;
+        });
+    div.querySelectorAll('.reaction-button').forEach(btn => {
+      const key = btn.dataset.reaction;
+      btn.classList.toggle('reaction-active', current === key);
+      btn.setAttribute('data-active', current === key ? '1' : '0');
     });
   }
 
-  reactionButtons.forEach(btn => {
+  div.querySelectorAll('.reaction-button').forEach(btn => {
     btn.addEventListener('click', async () => {
-      const reaction = btn.dataset.reaction;
-      const map = loadPostReactions();
-      const stored = map[post.id];
-
-      // Если не лайкнуто - лайкаем и ставим реакцию
-      if (!liked) {
-        try {
-          const response = await window.API.Post.toggleLike(post.id);
-          if (response.success) {
-            liked = response.liked;
-            reactionsCountSpan.textContent = `${response.likesCount} ${likesWord}`;
-            if (response.liked) {
-              map[post.id] = reaction;
-              savePostReactions(map);
-              reactionButtons.forEach(b => b.classList.toggle('reaction-active', b === btn));
-            }
-          }
-        } catch (error) {
-          alert('Ошибка: ' + error.message);
+      const reactionType = btn.dataset.reaction;
+      try {
+        const response = await window.API.Post.toggleLike(post.id, reactionType);
+        if (response.success) {
+          updateReactionCounts(response.reactionCounts, response.currentUserReaction);
         }
-        return;
+      } catch (error) {
+        alert('Ошибка: ' + error.message);
       }
-
-      // Уже лайкнуто:
-      // 1) клик по той же реакции => убираем лайк
-      if (stored === reaction) {
-        try {
-          const response = await window.API.Post.toggleLike(post.id);
-          if (response.success) {
-            liked = response.liked;
-            reactionsCountSpan.textContent = `${response.likesCount} ${likesWord}`;
-            if (!response.liked) {
-              delete map[post.id];
-              savePostReactions(map);
-              reactionButtons.forEach(b => b.classList.remove('reaction-active'));
-            }
-          }
-        } catch (error) {
-          alert('Ошибка: ' + error.message);
-        }
-        return;
-      }
-
-      // 2) клик по другой реакции => только меняем тип локально, без дополнительного запроса
-      map[post.id] = reaction;
-      savePostReactions(map);
-      reactionButtons.forEach(b => b.classList.toggle('reaction-active', b === btn));
     });
   });
 
@@ -412,6 +364,7 @@ async function renderPost(post, currentUserId) {
   // Обработчик отправки комментария
   const submitCommentBtn = div.querySelector('[data-action="submit-comment"]');
   const commentInput = div.querySelector(`#comment-input-${post.id}`);
+  const commentCountEl = div.querySelector('.post-action-count[data-action="comment"]');
   submitCommentBtn.addEventListener('click', async () => {
     const content = commentInput.value.trim();
     if (!content) return;
@@ -421,10 +374,7 @@ async function renderPost(post, currentUserId) {
       if (response.success) {
         commentInput.value = '';
         await loadComments(post.id);
-        // Обновляем счетчик комментариев
-        const commentsSpan = commentBtn.nextElementSibling;
-        const currentCount = parseInt(commentsSpan.textContent) || 0;
-        commentsSpan.textContent = `${currentCount + 1} ${commentsWord}`;
+        if (commentCountEl) commentCountEl.textContent = (parseInt(commentCountEl.textContent, 10) || 0) + 1;
       }
     } catch (error) {
       alert('Ошибка: ' + error.message);
@@ -433,6 +383,7 @@ async function renderPost(post, currentUserId) {
 
   // Обработчик репоста
   const repostBtn = div.querySelector('[data-action="repost"]');
+  const repostCountEl = div.querySelector('.post-action-count[data-action="repost"]');
   repostBtn.addEventListener('click', async () => {
     if (reposted) {
       alert('Вы уже репостили этот пост');
@@ -443,10 +394,7 @@ async function renderPost(post, currentUserId) {
       const response = await window.API.Post.createRepost(post.id);
       if (response.success) {
         repostBtn.setAttribute('data-reposted', 'true');
-        repostBtn.textContent = I18n.t('reposted') || 'Репостнуто';
-        const repostsSpan = repostBtn.nextElementSibling;
-        const currentCount = parseInt(repostsSpan.textContent) || 0;
-        repostsSpan.textContent = `${currentCount + 1} ${repostsWord}`;
+        if (repostCountEl) repostCountEl.textContent = (parseInt(repostCountEl.textContent, 10) || 0) + 1;
       }
     } catch (error) {
       alert('Ошибка: ' + error.message);
@@ -724,11 +672,49 @@ const App = {
     if (I18n.apply) {
       I18n.apply(document);
     }
+    updateFeedSubtitle();
 
     const currentUser = await getCurrentUser();
     if (!currentUser) return;
 
     await this.renderMiniProfile(currentUser);
+
+    // Сетевая статистика и последние пользователи
+    try {
+      const statsRes = await window.API.Stats.getNetworkStats();
+      if (statsRes.success && statsRes.stats) {
+        const s = statsRes.stats;
+        const elUsers = document.getElementById('statUsers');
+        const elPosts = document.getElementById('statPosts');
+        const elComments = document.getElementById('statComments');
+        if (elUsers) elUsers.textContent = s.usersCount ?? 0;
+        if (elPosts) elPosts.textContent = s.postsCount ?? 0;
+        if (elComments) elComments.textContent = s.commentsCount ?? 0;
+      }
+    } catch (e) { /* ignore */ }
+    try {
+      const recentRes = await window.API.User.getRecentUsers();
+      const container = document.getElementById('lastRegisteredUsers');
+      if (container && recentRes.success && recentRes.users && recentRes.users.length) {
+        container.innerHTML = '';
+        recentRes.users.forEach(u => {
+          const div = document.createElement('div');
+          div.className = 'user-item';
+          div.innerHTML = `
+            <div class="user-main">
+              <div class="avatar">${userAvatarHTML(u)}</div>
+              <div>
+                <a href="user.html?id=${u.id}"><strong>${escapeHtml(u.username)}</strong></a>
+                <div class="muted">${escapeHtml(u.email || '')}</div>
+              </div>
+            </div>
+          `;
+          container.appendChild(div);
+        });
+      } else if (container) {
+        container.innerHTML = '<p class="muted">No users yet</p>';
+      }
+    } catch (e) { /* ignore */ }
 
     const postForm = document.getElementById('postForm');
     const postContent = document.getElementById('postContent');
@@ -1328,12 +1314,42 @@ const App = {
 
     const searchInput = document.getElementById('messagesSearchInput');
     const usersList = document.getElementById('messagesUsersList');
+    const conversationsList = document.getElementById('messagesConversationsList');
+    const recommendationsList = document.getElementById('messagesRecommendationsList');
     const convHeader = document.getElementById('messagesConversationHeader');
     const convContainer = document.getElementById('messagesConversation');
     const inputEl = document.getElementById('messagesInput');
     const sendBtn = document.getElementById('messagesSendBtn');
 
     let selectedUser = null;
+
+    function selectUserAndLoad(u, highlightEl) {
+      selectedUser = u;
+      loadConversation(u.id, u.username);
+      [conversationsList, recommendationsList, usersList].forEach(el => {
+        if (!el) return;
+        el.querySelectorAll('.user-item').forEach(item => item.classList.remove('selected'));
+      });
+      if (highlightEl) highlightEl.classList.add('selected');
+    }
+
+    function renderUserItem(u, container) {
+      if (!container) return;
+      const div = document.createElement('div');
+      div.className = 'user-item';
+      div.style.cursor = 'pointer';
+      div.innerHTML = `
+        <div class="user-main">
+          <div class="avatar">${userAvatarHTML(u)}</div>
+          <div>
+            <strong>${escapeHtml(u.username)}</strong>
+            <div class="muted">${escapeHtml(u.email || '')}</div>
+          </div>
+        </div>
+      `;
+      div.addEventListener('click', () => selectUserAndLoad(u, div));
+      container.appendChild(div);
+    }
 
     async function loadConversation(withUserId, withUsername) {
       if (!convContainer || !convHeader) return;
@@ -1392,10 +1408,7 @@ const App = {
                 </div>
               </div>
             `;
-            div.addEventListener('click', () => {
-              selectedUser = u;
-              loadConversation(u.id, u.username);
-            });
+            div.addEventListener('click', () => selectUserAndLoad(u, div));
             usersList.appendChild(div);
           });
         }
@@ -1411,6 +1424,48 @@ const App = {
         timeout = setTimeout(() => searchUsersForMessages(searchInput.value), 300);
       });
     }
+
+    // Загрузка диалогов и рекомендаций
+    (async () => {
+      try {
+        const convResp = await window.API.Messages.getConversations();
+        if (conversationsList && convResp.success && convResp.users && convResp.users.length) {
+          conversationsList.innerHTML = '';
+          convResp.users.forEach(u => renderUserItem(u, conversationsList));
+        } else if (conversationsList) {
+          conversationsList.innerHTML = '<p class="muted">No conversations yet</p>';
+        }
+      } catch (e) {
+        if (conversationsList) conversationsList.innerHTML = '<p class="muted">No conversations</p>';
+      }
+      try {
+        const recResp = await window.API.Recommendations.getUsers();
+        const users = recResp.users || recResp.recommendations || [];
+        const toShow = users.filter(u => String(u.id) !== String(currentUser.id)).slice(0, 10);
+        if (recommendationsList) {
+          recommendationsList.innerHTML = '';
+          if (toShow.length) toShow.forEach(u => renderUserItem(u, recommendationsList));
+          else {
+            const recentResp = await window.API.User.getRecentUsers();
+            const recent = (recentResp.users || []).filter(u => String(u.id) !== String(currentUser.id)).slice(0, 5);
+            recent.forEach(u => renderUserItem(u, recommendationsList));
+            if (recent.length === 0) recommendationsList.innerHTML = '<p class="muted">No users to recommend</p>';
+          }
+        }
+      } catch (e) {
+        try {
+          const recentResp = await window.API.User.getRecentUsers();
+          const recent = (recentResp.users || []).filter(u => String(u.id) !== String(currentUser.id)).slice(0, 5);
+          if (recommendationsList) {
+            recommendationsList.innerHTML = '';
+            if (recent.length) recent.forEach(u => renderUserItem(u, recommendationsList));
+            else recommendationsList.innerHTML = '<p class="muted">No users to recommend</p>';
+          }
+        } catch (e2) {
+          if (recommendationsList) recommendationsList.innerHTML = '<p class="muted">No recommendations</p>';
+        }
+      }
+    })();
 
     if (sendBtn && inputEl) {
       sendBtn.addEventListener('click', async () => {

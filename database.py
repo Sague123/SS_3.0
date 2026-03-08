@@ -63,6 +63,7 @@ def init_database():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             postId INTEGER NOT NULL,
             userId INTEGER NOT NULL,
+            reactionType TEXT DEFAULT 'heart',
             createdAt TEXT NOT NULL,
             UNIQUE(postId, userId),
             FOREIGN KEY (postId) REFERENCES Posts(id) ON DELETE CASCADE,
@@ -133,6 +134,13 @@ def init_database():
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_followers_followerId ON Followers(followerId)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_followers_followingId ON Followers(followingId)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_files_postId ON Files(postId)')
+
+    # Миграция: добавить reactionType в Likes, если таблица уже существовала без него
+    try:
+        cursor.execute('SELECT reactionType FROM Likes LIMIT 1')
+    except sqlite3.OperationalError:
+        cursor.execute('ALTER TABLE Likes ADD COLUMN reactionType TEXT DEFAULT \'heart\'')
+        conn.commit()
 
     # Таблица сообщений
     cursor.execute('''

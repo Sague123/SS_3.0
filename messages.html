@@ -2,6 +2,7 @@
 <html lang="cs">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>My Bubble — Messages</title>
   <link rel="stylesheet" href="styles.css">
   <link rel="icon" type="image/png" href="Icons/Logo.png">
@@ -34,10 +35,12 @@
       <section class="column-main">
         <div class="card">
           <h2>Messages</h2>
-          <div class="users-list" style="margin-bottom: 8px;">
-            <input type="text" id="messagesSearchInput" placeholder="Найти пользователя..." style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid #d1d5db;">
-            <div id="messagesUsersList" class="users-list" style="margin-top: 8px;"></div>
-          </div>
+          <h3 style="font-size: 0.95rem; margin-top: 8px;">Recent conversations</h3>
+          <div id="messagesConversationsList" class="users-list" style="min-height: 40px;"></div>
+          <h3 style="font-size: 0.95rem; margin-top: 12px;">Recommendations — write to</h3>
+          <input type="text" id="messagesSearchInput" placeholder="Search user..." style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid #d1d5db; margin-top: 4px;">
+          <div id="messagesRecommendationsList" class="users-list" style="margin-top: 8px;"></div>
+          <div id="messagesUsersList" class="users-list" style="margin-top: 8px;"></div>
         </div>
       </section>
 

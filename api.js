@@ -147,6 +147,13 @@ const UserAPI = {
       method: 'POST',
       body: formData
     });
+  },
+
+  /**
+   * Последние зарегистрированные пользователи (5 шт.)
+   */
+  async getRecentUsers() {
+    return apiRequest('/users/recent');
   }
 };
 
@@ -187,11 +194,12 @@ const PostAPI = {
   },
 
   /**
-   * Переключить лайк на посте
+   * Переключить реакцию на посте (reactionType: 'heart'|'fire'|'laugh'|'wow')
    */
-  async toggleLike(postId) {
+  async toggleLike(postId, reactionType = 'heart') {
     return apiRequest(`/posts/${postId}/like`, {
-      method: 'POST'
+      method: 'POST',
+      body: JSON.stringify({ reactionType })
     });
   },
 
@@ -258,6 +266,13 @@ const RecommendationsAPI = {
  */
 const MessagesAPI = {
   /**
+   * Список диалогов (пользователи, с которыми есть переписка)
+   */
+  async getConversations() {
+    return apiRequest('/messages/conversations');
+  },
+
+  /**
    * Получить сообщения с пользователем
    */
   async getMessages(withUserId) {
@@ -277,10 +292,20 @@ const MessagesAPI = {
   }
 };
 
+/**
+ * API статистики сети
+ */
+const StatsAPI = {
+  async getNetworkStats() {
+    return apiRequest('/stats');
+  }
+};
+
 // Экспортируем API для использования в других модулях
 window.API = {
   User: UserAPI,
   Post: PostAPI,
   Recommendations: RecommendationsAPI,
-  Messages: MessagesAPI
+  Messages: MessagesAPI,
+  Stats: StatsAPI
 };
