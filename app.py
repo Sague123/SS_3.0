@@ -32,6 +32,19 @@ def get_current_user_id():
     return session.get('user_id')
 
 
+def update_user_last_active(user_id):
+    if not user_id:
+        return
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('UPDATE Users SET lastActive = ? WHERE id = ?', (datetime.now().isoformat(), user_id))
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
+
+
 # --- API ---
 
 @app.route('/api/register', methods=['POST'])
@@ -127,7 +140,7 @@ def get_current_user():
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('''
-        SELECT id, username, email, bio, avatar, createdAt
+        SELECT id, username, email, bio, avatar, createdAt, profileBackground, profileAccentColor, profileGradient
         FROM Users
         WHERE id = ?
     ''', (user_id,))
@@ -146,7 +159,7 @@ def get_user(user_id):
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('''
-        SELECT id, username, email, bio, avatar, createdAt
+        SELECT id, username, email, bio, avatar, createdAt, profileBackground, profileAccentColor, profileGradient
         FROM Users
         WHERE id = ?
     ''', (user_id,))
@@ -180,9 +193,9 @@ def search_users():
     cursor.execute('''
         SELECT id, username, email, bio, avatar, createdAt
         FROM Users
-        WHERE username LIKE ?
+        WHERE username LIKE ? OR email LIKE ?
         LIMIT 20
-    ''', (f'%{query}%',))
+    ''', (f'%{query}%', f'%{query}%'))
     
     users = [dict(row) for row in cursor.fetchall()]
     conn.close()
@@ -620,6 +633,77 @@ def toggle_comment_like(comment_id):
     })
 
 
+@app.route('/api/comments/<int:comment_id>', methods=['PUT', 'PATCH'])
+def update_comment(comment_id):
+    user_id = require_auth()
+    if not user_id:
+        return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
+
+    data = request.get_json()
+    content = (data.get('content') or '').strip()
+    if not content:
+        return jsonify({'success': False, 'message': 'Комментарий не может быть пустым'}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT id, userId, content FROM Comments WHERE id = ?', (comment_id,))
+    row = cursor.fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'success': False, 'message': 'Комментарий не найден'}), 404
+    if row['userId'] != user_id:
+        conn.close()
+        return jsonify({'success': False, 'message': 'Нельзя редактировать чужой комментарий'}), 403
+
+    cursor.execute('UPDATE Comments SET content = ? WHERE id = ?', (content, comment_id))
+    cursor.execute('''
+        SELECT c.id, c.postId, c.userId, c.content, c.createdAt,
+               u.username, u.avatar
+        FROM Comments c
+        JOIN Users u ON c.userId = u.id
+        WHERE c.id = ?
+    ''', (comment_id,))
+    comment = dict(cursor.fetchone())
+    cursor.execute('SELECT reactionType, COUNT(*) as cnt FROM CommentLikes WHERE commentId = ? GROUP BY reactionType', (comment_id,))
+    comment['reactionCounts'] = {'heart': 0, 'fire': 0, 'laugh': 0, 'wow': 0}
+    for r in cursor.fetchall():
+        t = (r['reactionType'] or 'heart').lower()
+        if t in comment['reactionCounts']:
+            comment['reactionCounts'][t] = r['cnt']
+    comment['currentUserReaction'] = None
+    cursor.execute('SELECT reactionType FROM CommentLikes WHERE commentId = ? AND userId = ?', (comment_id, user_id))
+    r = cursor.fetchone()
+    if r:
+        comment['currentUserReaction'] = (r['reactionType'] or 'heart').lower()
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True, 'comment': comment})
+
+
+@app.route('/api/comments/<int:comment_id>', methods=['DELETE'])
+def delete_comment(comment_id):
+    user_id = require_auth()
+    if not user_id:
+        return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT id, userId, postId FROM Comments WHERE id = ?', (comment_id,))
+    row = cursor.fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'success': False, 'message': 'Комментарий не найден'}), 404
+    if row['userId'] != user_id:
+        conn.close()
+        return jsonify({'success': False, 'message': 'Нельзя удалить чужой комментарий'}), 403
+
+    cursor.execute('DELETE FROM CommentLikes WHERE commentId = ?', (comment_id,))
+    cursor.execute('DELETE FROM Comments WHERE id = ?', (comment_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True, 'message': 'Комментарий удалён', 'postId': row['postId']})
+
+
 @app.route('/api/posts/<int:post_id>/repost', methods=['POST'])
 def create_repost(post_id):
     user_id = require_auth()
@@ -761,6 +845,7 @@ def get_messages():
     current_user_id = require_auth()
     if not current_user_id:
         return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
+    update_user_last_active(current_user_id)
 
     try:
         other_id = int(request.args.get('withUser', ''))
@@ -798,6 +883,7 @@ def send_message():
     from_user_id = require_auth()
     if not from_user_id:
         return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
+    update_user_last_active(from_user_id)
 
     data = request.get_json() or {}
     to_user_id = data.get('toUserId')
@@ -852,6 +938,7 @@ def get_conversations():
     current_user_id = require_auth()
     if not current_user_id:
         return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
+    update_user_last_active(current_user_id)
 
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -868,20 +955,28 @@ def get_conversations():
 
     ph = ','.join(['?'] * len(partner_ids))
     cursor.execute(f'''
-        SELECT id, username, email, bio, avatar, createdAt
+        SELECT id, username, email, bio, avatar, createdAt, lastActive
         FROM Users
         WHERE id IN ({ph})
     ''', partner_ids)
     users = [dict(row) for row in cursor.fetchall()]
-    # sort by last message time
     for u in users:
         cursor.execute('''
-            SELECT createdAt FROM Messages
+            SELECT id, content, fromUserId, createdAt FROM Messages
             WHERE (fromUserId = ? AND toUserId = ?) OR (fromUserId = ? AND toUserId = ?)
             ORDER BY createdAt DESC LIMIT 1
         ''', (current_user_id, u['id'], u['id'], current_user_id))
         r = cursor.fetchone()
-        u['lastMessageAt'] = r['createdAt'] if r else None
+        if r:
+            u['lastMessageAt'] = r['createdAt']
+            u['lastMessageContent'] = r['content']
+            u['lastMessageFromUserId'] = r['fromUserId']
+            u['lastMessageId'] = r['id']
+        else:
+            u['lastMessageAt'] = None
+            u['lastMessageContent'] = None
+            u['lastMessageFromUserId'] = None
+            u['lastMessageId'] = None
     users.sort(key=lambda x: (x.get('lastMessageAt') or ''), reverse=True)
     conn.close()
     return jsonify({'success': True, 'users': users})
@@ -1248,13 +1343,18 @@ def update_profile():
     
     bio = request.form.get('bio', '').strip()
     avatar_file = request.files.get('avatar')
-    
+    profile_gradient = (request.form.get('profileGradient') or '').strip() or None
+
     updates = []
     params = []
-    
+
     if bio is not None:
         updates.append('bio = ?')
         params.append(bio)
+
+    if profile_gradient is not None:
+        updates.append('profileGradient = ?')
+        params.append(profile_gradient)
     
     if avatar_file:
         file_info = save_file(avatar_file, user_id)
@@ -1277,7 +1377,7 @@ def update_profile():
         conn.commit()
     
     cursor.execute('''
-        SELECT id, username, email, bio, avatar, createdAt
+        SELECT id, username, email, bio, avatar, createdAt, profileBackground, profileAccentColor, profileGradient
         FROM Users
         WHERE id = ?
     ''', (user_id,))

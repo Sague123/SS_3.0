@@ -103,13 +103,16 @@ const UserAPI = {
   async toggleFollow(userId) {
     return apiRequest(`/follow/${userId}`, { method: 'POST' });
   },
-  async updateProfile(bio, avatarFile) {
+  async updateProfile(bio, avatarFile, profileGradient) {
     const formData = new FormData();
     if (bio !== null && bio !== undefined) {
       formData.append('bio', bio);
     }
     if (avatarFile) {
       formData.append('avatar', avatarFile);
+    }
+    if (profileGradient != null && profileGradient !== '') {
+      formData.append('profileGradient', profileGradient);
     }
     return apiRequest('/profile/update', {
       method: 'POST',
@@ -156,6 +159,15 @@ const PostAPI = {
       method: 'POST',
       body: JSON.stringify({ reactionType })
     });
+  },
+  async updateComment(commentId, content) {
+    return apiRequest(`/comments/${commentId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ content })
+    });
+  },
+  async deleteComment(commentId) {
+    return apiRequest(`/comments/${commentId}`, { method: 'DELETE' });
   },
   async createRepost(postId) {
     return apiRequest(`/posts/${postId}/repost`, { method: 'POST' });

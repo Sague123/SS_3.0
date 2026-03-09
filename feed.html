@@ -28,6 +28,7 @@
           <option value="ru" data-i18n="lang_ru">Русский</option>
           <option value="en" data-i18n="lang_en">English</option>
         </select>
+        <button type="button" id="themeToggle" class="theme-toggle" aria-label="Theme">🌓 <span id="themeToggleLabel">Dark</span></button>
         <button id="logoutBtn" class="btn ghost" data-i18n="nav_logout">Выйти</button>
       </nav>
     </header>
@@ -89,7 +90,7 @@
       </section>
 
       <aside class="column-side column-side-feed">
-        <div class="card card-collapsible" id="recommendationsCard">
+        <div class="card card-collapsible trending-card" id="recommendationsCard">
           <h3 class="card-collapse-head">
             <span data-i18n="recommendations_title">Рекомендации</span>
             <button type="button" class="card-collapse-btn" aria-expanded="true" data-collapse-target="recommendationsCardBody"></button>

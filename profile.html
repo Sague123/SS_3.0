@@ -27,12 +27,13 @@
           <option value="ru" data-i18n="lang_ru">Русский</option>
           <option value="en" data-i18n="lang_en">English</option>
         </select>
+        <button type="button" id="themeToggle" class="theme-toggle" aria-label="Theme">🌓 <span id="themeToggleLabel">Dark</span></button>
         <button id="logoutBtn" class="btn ghost" data-i18n="nav_logout">Выйти</button>
       </nav>
     </header>
 
     <main class="layout-one-column">
-      <section class="card profile-card">
+      <section class="card profile-card" id="profileCard">
         <div class="profile-main">
           <div class="avatar" id="profileAvatar"><span id="profileAvatarLetter"></span></div>
           <div>
@@ -51,6 +52,21 @@
           <div class="form-group" style="margin-top: 10px;">
             <label for="avatarInput" class="file-input-label" data-i18n="avatar_upload_label">Фото профиля</label>
             <input type="file" id="avatarInput" class="file-input" accept="image/*">
+          </div>
+          <div class="profile-customize">
+            <h4 data-i18n="profile_customize_title">Оформление профиля</h4>
+            <div class="form-group">
+              <label for="profileGradient" data-i18n="profile_gradient_label">Градиент карточки</label>
+              <select id="profileGradient" class="profile-gradient-select" title="Gradient">
+                <option value="" data-i18n="profile_gradient_none">Без градиента</option>
+                <option value="sunset" data-i18n="profile_gradient_sunset">Закат</option>
+                <option value="ocean" data-i18n="profile_gradient_ocean">Океан</option>
+                <option value="aurora" data-i18n="profile_gradient_aurora">Северное сияние</option>
+                <option value="violet" data-i18n="profile_gradient_violet">Фиолетовый</option>
+                <option value="emerald" data-i18n="profile_gradient_emerald">Изумруд</option>
+              </select>
+            </div>
+            <button type="button" id="profileGradientSave" class="btn ghost small" data-i18n="profile_theme_save">Сохранить оформление</button>
           </div>
         </div>
 

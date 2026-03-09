@@ -27,34 +27,46 @@
           <option value="ru" data-i18n="lang_ru">Русский</option>
           <option value="en" data-i18n="lang_en">English</option>
         </select>
+        <button type="button" id="themeToggle" class="theme-toggle" aria-label="Theme">🌓 <span id="themeToggleLabel">Dark</span></button>
         <button id="logoutBtn" class="btn ghost" data-i18n="nav_logout">Выйти</button>
       </nav>
     </header>
 
-    <main class="layout-two-columns">
-      <section class="column-main">
-        <div class="card">
-          <h2 data-i18n="messages_title">Messages</h2>
-          <h3 style="font-size: 0.95rem; margin-top: 8px;" data-i18n="messages_recent">Recent conversations</h3>
-          <div id="messagesConversationsList" class="users-list" style="min-height: 40px;"></div>
-          <h3 style="font-size: 0.95rem; margin-top: 12px;" data-i18n="messages_recommendations">Recommendations — write to</h3>
-          <input type="text" id="messagesSearchInput" data-i18n="messages_search_placeholder" placeholder="Search user..." style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid #d1d5db; margin-top: 4px;">
-          <div id="messagesRecommendationsList" class="users-list" style="margin-top: 8px;"></div>
-          <div id="messagesUsersList" class="users-list" style="margin-top: 8px;"></div>
+    <main class="messages-layout">
+      <section class="messages-sidebar card">
+        <div class="messages-search-wrap">
+          <input type="text" id="messagesSearchInput" class="messages-search-input" data-i18n="messages_search_placeholder" placeholder="Search by username or email...">
+        </div>
+        <div id="messagesUsersList" class="messages-user-list"></div>
+        <div class="messages-conversations-wrap">
+          <h3 class="messages-list-title" data-i18n="messages_recent">Recent conversations</h3>
+          <div id="messagesConversationsList" class="messages-conversations-list"></div>
+        </div>
+        <div class="messages-recommendations-wrap">
+          <h3 class="messages-list-title" data-i18n="messages_recommendations">Recommendations — write to</h3>
+          <div id="messagesRecommendationsList" class="messages-conversations-list"></div>
         </div>
       </section>
 
-      <aside class="column-side">
-        <div class="card">
-          <h3 data-i18n="messages_dialog">Dialog</h3>
-          <div id="messagesConversationHeader" class="muted" style="margin-bottom: 6px;" data-i18n="messages_choose_user">Выберите пользователя слева</div>
-          <div id="messagesConversation" style="max-height: 360px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 8px; padding: 8px; margin-bottom: 8px;"></div>
-          <div>
-            <textarea id="messagesInput" rows="3" data-i18n="messages_placeholder" placeholder="Написать сообщение..." style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid #d1d5db;"></textarea>
-            <button id="messagesSendBtn" class="btn primary small" type="button" style="margin-top: 6px;" data-i18n="messages_send">Send</button>
+      <section class="messages-chat card">
+        <div id="messagesChatPlaceholder" class="messages-chat-placeholder" data-i18n="messages_choose_user">Choose a user on the left</div>
+        <div id="messagesChatPanel" class="messages-chat-panel" style="display: none;">
+          <div id="messagesConversationHeader" class="messages-chat-header">
+            <div class="messages-chat-header-user">
+              <span class="messages-chat-header-avatar" id="messagesChatHeaderAvatar"></span>
+              <div>
+                <span id="messagesChatHeaderName" class="messages-chat-header-name"></span>
+                <span id="messagesChatHeaderStatus" class="messages-chat-header-status"></span>
+              </div>
+            </div>
+          </div>
+          <div id="messagesConversation" class="messages-conversation"></div>
+          <div class="messages-input-wrap">
+            <textarea id="messagesInput" class="messages-input" rows="2" data-i18n="messages_placeholder" placeholder="Write a message... (Enter to send, Shift+Enter for new line)"></textarea>
+            <button id="messagesSendBtn" class="btn primary messages-send-btn" type="button" data-i18n="messages_send">Send</button>
           </div>
         </div>
-      </aside>
+      </section>
     </main>
 
     <footer class="app-footer">
@@ -77,4 +89,3 @@
   </script>
 </body>
 </html>
-

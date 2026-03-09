@@ -158,6 +158,25 @@ def init_database():
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_messages_from_to ON Messages(fromUserId, toUserId)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_messages_to ON Messages(toUserId)')
     
+    try:
+        cursor.execute('SELECT lastActive FROM Users LIMIT 1')
+    except sqlite3.OperationalError:
+        cursor.execute('ALTER TABLE Users ADD COLUMN lastActive TEXT DEFAULT NULL')
+        conn.commit()
+
+    try:
+        cursor.execute('SELECT profileBackground FROM Users LIMIT 1')
+    except sqlite3.OperationalError:
+        cursor.execute('ALTER TABLE Users ADD COLUMN profileBackground TEXT DEFAULT NULL')
+        cursor.execute('ALTER TABLE Users ADD COLUMN profileAccentColor TEXT DEFAULT NULL')
+        conn.commit()
+
+    try:
+        cursor.execute('SELECT profileGradient FROM Users LIMIT 1')
+    except sqlite3.OperationalError:
+        cursor.execute('ALTER TABLE Users ADD COLUMN profileGradient TEXT DEFAULT NULL')
+        conn.commit()
+    
     conn.commit()
     conn.close()
     print("База данных успешно инициализирована!")

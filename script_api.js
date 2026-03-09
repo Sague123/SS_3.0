@@ -11,6 +11,28 @@ let currentUser = null;
 const usersCache = new Map();
 
 const REC_WEIGHTS_STORAGE_KEY = 'recommendationWeights';
+const THEME_STORAGE_KEY = 'appTheme';
+
+function getTheme() {
+  try {
+    return localStorage.getItem(THEME_STORAGE_KEY) || 'light';
+  } catch { return 'light'; }
+}
+function setTheme(theme) {
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, theme);
+  } catch {}
+}
+function applyTheme(theme) {
+  const root = document.documentElement;
+  if (theme === 'dark') root.setAttribute('data-theme', 'dark');
+  else root.removeAttribute('data-theme');
+  const label = document.getElementById('themeToggleLabel');
+  if (label) label.textContent = theme === 'dark' ? 'Light' : 'Dark';
+}
+(function initTheme() {
+  if (typeof document !== 'undefined' && document.documentElement) applyTheme(getTheme());
+})();
 
 const DEFAULT_RECOMMENDATION_WEIGHTS = {
   followersWeight: 1.0,
@@ -190,6 +212,26 @@ function formatDate(iso) {
   }
 }
 
+function formatRelativeTime(iso) {
+  try {
+    const d = new Date(iso);
+    const now = new Date();
+    const sec = Math.floor((now - d) / 1000);
+    if (sec < 60) return (I18n && I18n.t('time_just_now')) ? I18n.t('time_just_now') : 'just now';
+    const min = Math.floor(sec / 60);
+    if (min < 60) return min === 1 ? ((I18n && I18n.t('time_minute_ago')) ? I18n.t('time_minute_ago') : '1 min ago') : (min + ' min ago');
+    const hours = Math.floor(min / 60);
+    if (hours < 24) return hours === 1 ? ((I18n && I18n.t('time_hour_ago')) ? I18n.t('time_hour_ago') : '1 hour ago') : (hours + ' hours ago');
+    const days = Math.floor(hours / 24);
+    if (days < 7) return days === 1 ? ((I18n && I18n.t('time_day_ago')) ? I18n.t('time_day_ago') : '1 day ago') : (days + ' days ago');
+    const weeks = Math.floor(days / 7);
+    if (weeks < 4) return weeks === 1 ? ((I18n && I18n.t('time_week_ago')) ? I18n.t('time_week_ago') : '1 week ago') : (weeks + ' weeks ago');
+    return formatDate(iso);
+  } catch {
+    return iso;
+  }
+}
+
 function escapeHtml(text) {
   if (typeof text !== 'string') return '';
   const map = {
@@ -212,6 +254,17 @@ function userAvatarHTML(user) {
   }
   const letter = user.username ? user.username.charAt(0).toUpperCase() : '?';
   return escapeHtml(letter);
+}
+
+function emptyStateHTML(titleKey, textKey, icon) {
+  const title = (I18n && I18n.t(titleKey)) ? I18n.t(titleKey) : 'No posts yet';
+  const text = (I18n && I18n.t(textKey)) ? I18n.t(textKey) : 'Share your first moment — the community is waiting for your story.';
+  const i = icon || '✨';
+  return `<div class="empty-state">
+    <div class="empty-state-icon">${i}</div>
+    <div class="empty-state-title">${escapeHtml(title)}</div>
+    <div class="empty-state-text">${escapeHtml(text)}</div>
+  </div>`;
 }
 
 function getServerOrigin() {
@@ -288,15 +341,22 @@ async function renderPost(post, currentUserId) {
 
   const moodEmoji = getMoodEmoji(post.mood);
   const storyScore = author && (author.storyScore != null) ? author.storyScore : 0;
+  const authorLink = author ? `user.html?id=${author.id}` : '#';
+  const avatarHtmlInner = author ? userAvatarHTML(author) : '?';
 
   div.innerHTML = `
     ${post.isRepost ? `<div class="post-repost-header muted" style="font-size: 0.85rem; margin-bottom: 4px;">↗ Reposted from <a href="user.html?id=${author ? author.id : ''}">@${author ? escapeHtml(author.username) : '?'}</a></div>` : ''}
     <div class="post-header">
-      <div>
-        <strong><a href="user.html?id=${author ? author.id : ''}">${author ? escapeHtml(author.username) : 'Неизвестно'}</a></strong>
-        <span class="post-mood" title="mood">${moodEmoji}</span>
-        ${storyScore > 0 ? `<span class="post-story-score muted" style="font-size: 0.85rem;"> · Score ${storyScore}</span>` : ''}
-        <div class="post-meta">${formatDate(post.createdAt)}</div>
+      <div class="post-header-left">
+        <a href="${authorLink}" class="post-avatar-link" aria-label="${author ? escapeHtml(author.username) : ''}">
+          <span class="avatar">${avatarHtmlInner}</span>
+        </a>
+        <div>
+          <strong><a href="${authorLink}">${author ? escapeHtml(author.username) : 'Неизвестно'}</a></strong>
+          <span class="post-mood" title="mood">${moodEmoji}</span>
+          ${storyScore > 0 ? `<span class="post-story-score muted" style="font-size: 0.85rem;"> · Score ${storyScore}</span>` : ''}
+          <div class="post-meta">${formatRelativeTime(post.createdAt)}</div>
+        </div>
       </div>
       ${canDelete ? `<button class="link-button danger" data-action="delete">${deleteText}</button>` : ''}
     </div>
@@ -345,6 +405,8 @@ async function renderPost(post, currentUserId) {
   div.querySelectorAll('.reaction-button').forEach(btn => {
     btn.addEventListener('click', async () => {
       const reactionType = btn.dataset.reaction;
+      btn.classList.add('reaction-burst');
+      setTimeout(() => btn.classList.remove('reaction-burst'), 400);
       try {
         const response = await window.API.Post.toggleLike(post.id, reactionType);
         if (response.success) {
@@ -433,7 +495,7 @@ async function loadComments(postId) {
       
       commentsList.innerHTML = '';
       
-      if (response.comments.length === 0) {
+        if (response.comments.length === 0) {
         commentsList.innerHTML = '<p class="muted" style="font-size: 0.85rem;">Пока нет комментариев</p>';
         return;
       }
@@ -441,6 +503,7 @@ async function loadComments(postId) {
       response.comments.forEach(comment => {
         const counts = comment.reactionCounts || { heart: 0, fire: 0, laugh: 0, wow: 0 };
         const curReaction = comment.currentUserReaction || null;
+        const isOwn = currentUser && comment.userId === currentUser.id;
         const reactionRow = [
           { key: 'heart', emoji: '❤️' },
           { key: 'fire', emoji: '🔥' },
@@ -456,18 +519,93 @@ async function loadComments(postId) {
         const commentDiv = document.createElement('div');
         commentDiv.className = 'comment-item';
         commentDiv.dataset.commentId = comment.id;
-        commentDiv.style.cssText = 'padding: 8px; margin-bottom: 8px; background: #f9fafb; border-radius: 6px;';
+        commentDiv.style.cssText = 'padding: 8px; margin-bottom: 8px; border-radius: 6px;';
+        const actionsHtml = isOwn
+          ? `<span class="comment-actions" style="margin-left: auto;">
+               <button type="button" class="link-button comment-edit-btn" data-comment-id="${comment.id}" style="font-size: 0.8rem;">${I18n.t('comment_edit') || 'Изменить'}</button>
+               <button type="button" class="link-button comment-delete-btn" data-comment-id="${comment.id}" style="font-size: 0.8rem; color: var(--danger);">${I18n.t('comment_delete') || 'Удалить'}</button>
+             </span>`
+          : '';
         commentDiv.innerHTML = `
-          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px; flex-wrap: wrap;">
             <strong style="font-size: 0.9rem;">${escapeHtml(comment.username)}</strong>
-            <span class="muted" style="font-size: 0.75rem;">${formatDate(comment.createdAt)}</span>
+            <span class="muted" style="font-size: 0.75rem;">${formatRelativeTime(comment.createdAt)}</span>
+            ${actionsHtml}
           </div>
-          <div style="font-size: 0.9rem;">${escapeHtml(comment.content)}</div>
+          <div class="comment-body" style="font-size: 0.9rem;">${escapeHtml(comment.content)}</div>
+          <div class="comment-edit-form" style="display: none; margin-top: 6px;">
+            <textarea class="comment-input comment-edit-input" rows="2" style="width: 100%; margin-top: 4px; resize: vertical;"></textarea>
+            <div style="margin-top: 6px;">
+              <button type="button" class="btn primary small comment-save-btn" data-comment-id="${comment.id}">${I18n.t('save') || 'Сохранить'}</button>
+              <button type="button" class="btn ghost small comment-cancel-btn" data-comment-id="${comment.id}">${I18n.t('cancel') || 'Отмена'}</button>
+            </div>
+          </div>
           <div class="comment-reactions" style="display: flex; align-items: center; gap: 6px; margin-top: 6px; flex-wrap: wrap;">
             ${reactionRow}
           </div>
         `;
         commentsList.appendChild(commentDiv);
+
+        if (isOwn) {
+          const editBtn = commentDiv.querySelector('.comment-edit-btn');
+          const deleteBtn = commentDiv.querySelector('.comment-delete-btn');
+          const bodyEl = commentDiv.querySelector('.comment-body');
+          const formEl = commentDiv.querySelector('.comment-edit-form');
+          const inputEl = commentDiv.querySelector('.comment-edit-input');
+          const saveBtn = commentDiv.querySelector('.comment-save-btn');
+          const cancelBtn = commentDiv.querySelector('.comment-cancel-btn');
+
+          editBtn.addEventListener('click', () => {
+            inputEl.value = comment.content;
+            bodyEl.style.display = 'none';
+            formEl.style.display = 'block';
+            inputEl.focus();
+          });
+
+          cancelBtn.addEventListener('click', () => {
+            formEl.style.display = 'none';
+            bodyEl.style.display = '';
+          });
+
+          saveBtn.addEventListener('click', async () => {
+            const newContent = inputEl.value.trim();
+            if (!newContent) return;
+            try {
+              const resp = await window.API.Post.updateComment(comment.id, newContent);
+              if (resp.success && resp.comment) {
+                bodyEl.textContent = resp.comment.content;
+                bodyEl.style.display = '';
+                formEl.style.display = 'none';
+                comment.content = resp.comment.content;
+              }
+            } catch (err) {
+              console.error(err);
+              alert(I18n.t('error_save_comment') || 'Не удалось сохранить комментарий');
+            }
+          });
+
+          deleteBtn.addEventListener('click', async () => {
+            if (!confirm(I18n.t('comment_delete_confirm') || 'Удалить комментарий?')) return;
+            try {
+              const resp = await window.API.Post.deleteComment(comment.id);
+              if (resp.success) {
+                commentDiv.remove();
+                const commentCountEl = document.querySelector(`#comments-${postId}`)?.closest('.post')?.querySelector('.post-action-count[data-action="comment"]');
+                if (commentCountEl) {
+                  const n = Math.max(0, (parseInt(commentCountEl.textContent, 10) || 0) - 1);
+                  commentCountEl.textContent = n;
+                }
+                const list = document.getElementById(`comments-list-${postId}`);
+                if (list && list.querySelectorAll('.comment-item').length === 0) {
+                  list.innerHTML = '<p class="muted" style="font-size: 0.85rem;">Пока нет комментариев</p>';
+                }
+              }
+            } catch (err) {
+              console.error(err);
+              alert(I18n.t('error_delete_comment') || 'Не удалось удалить комментарий');
+            }
+          });
+        }
 
         commentDiv.querySelectorAll('.comment-reaction-btn').forEach(btn => {
           btn.addEventListener('click', async () => {
@@ -830,7 +968,7 @@ const App = {
       if (response.success) {
         container.innerHTML = '';
         if (response.posts.length === 0) {
-          container.innerHTML = '<p class="muted">Пока нет постов</p>';
+          container.innerHTML = emptyStateHTML('empty_posts_title', 'empty_posts_text', '✨');
           return;
         }
         
@@ -970,6 +1108,26 @@ const App = {
       });
     }
 
+    const profileCard = document.getElementById('profileCard');
+    const gradientSelect = document.getElementById('profileGradient');
+
+    function applyProfileGradient() {
+      const key = (currentUser.profileGradient || '').trim();
+      if (!profileCard) return;
+      profileCard.classList.remove(
+        'profile-card--gradient-sunset',
+        'profile-card--gradient-ocean',
+        'profile-card--gradient-aurora',
+        'profile-card--gradient-violet',
+        'profile-card--gradient-emerald'
+      );
+      if (key) {
+        profileCard.classList.add('profile-card--gradient-' + key);
+      }
+      if (gradientSelect) gradientSelect.value = key;
+    }
+    applyProfileGradient();
+
     try {
       const statsResponse = await window.API.User.getUserStats(currentUser.id);
       if (statsResponse.success) {
@@ -1033,6 +1191,22 @@ const App = {
       });
     }
 
+    const profileGradientSave = document.getElementById('profileGradientSave');
+    if (profileGradientSave && gradientSelect) {
+      profileGradientSave.addEventListener('click', async () => {
+        const gradient = (gradientSelect.value || '').trim();
+        try {
+          const response = await window.API.User.updateProfile(currentUser.bio || null, null, gradient);
+          if (response.success && response.user) {
+            currentUser.profileGradient = response.user.profileGradient;
+            applyProfileGradient();
+          }
+        } catch (error) {
+          alert('Ошибка: ' + error.message);
+        }
+      });
+    }
+
     const userPostsContainer = document.getElementById('userPostsContainer');
     if (userPostsContainer) {
       userPostsContainer.innerHTML = '<p class="muted">Загрузка...</p>';
@@ -1041,7 +1215,7 @@ const App = {
         const posts = Array.isArray(postsResponse?.posts) ? postsResponse.posts : [];
         userPostsContainer.innerHTML = '';
         if (posts.length === 0) {
-          userPostsContainer.innerHTML = '<p class="muted">Пока нет постов</p>';
+          userPostsContainer.innerHTML = emptyStateHTML('empty_posts_title', 'empty_posts_text', '✨');
         } else {
           for (const post of posts) {
             try {
@@ -1081,7 +1255,7 @@ const App = {
           const posts = Array.isArray(postsResponse?.posts) ? postsResponse.posts : [];
           userPostsContainer.innerHTML = '';
           if (posts.length === 0) {
-            userPostsContainer.innerHTML = '<p class="muted">Пока нет постов</p>';
+            userPostsContainer.innerHTML = emptyStateHTML('empty_posts_title', 'empty_posts_text', '✨');
           } else {
             for (const post of posts) {
               try {
@@ -1208,7 +1382,7 @@ const App = {
         if (postsResponse.success) {
           postsContainer.innerHTML = '';
           if (postsResponse.posts.length === 0) {
-            postsContainer.innerHTML = '<p class="muted">Пока нет постов</p>';
+            postsContainer.innerHTML = emptyStateHTML('empty_posts_title', 'empty_posts_text', '✨');
           } else {
             for (const post of postsResponse.posts) {
               const el = await renderPost(post, currentUser.id);
@@ -1340,68 +1514,183 @@ const App = {
     const inputEl = document.getElementById('messagesInput');
     const sendBtn = document.getElementById('messagesSendBtn');
 
+    const chatPlaceholder = document.getElementById('messagesChatPlaceholder');
+    const chatPanel = document.getElementById('messagesChatPanel');
+    const convHeaderAvatar = document.getElementById('messagesChatHeaderAvatar');
+    const convHeaderName = document.getElementById('messagesChatHeaderName');
+    const convHeaderStatus = document.getElementById('messagesChatHeaderStatus');
+
     let selectedUser = null;
+    const POLLING_INTERVAL_MS = 2500;
+    const MESSAGES_LAST_SEEN_KEY = 'messagesLastSeen';
+    const ONLINE_THRESHOLD_SEC = 120;
+    let lastLoadedMessageIds = new Set();
+    let pollingTimer = null;
+
+    function getLastSeenMap() {
+      try {
+        const raw = localStorage.getItem(MESSAGES_LAST_SEEN_KEY);
+        return raw ? JSON.parse(raw) : {};
+      } catch { return {}; }
+    }
+    function setLastSeen(partnerId, messageId) {
+      const map = getLastSeenMap();
+      map[String(partnerId)] = messageId;
+      try { localStorage.setItem(MESSAGES_LAST_SEEN_KEY, JSON.stringify(map)); } catch {}
+    }
+    function getLastSeen(partnerId) { return getLastSeenMap()[String(partnerId)] || 0; }
+
+    function isUserOnline(user) {
+      const lastActive = user && user.lastActive;
+      if (!lastActive) return false;
+      try {
+        return (Date.now() - new Date(lastActive).getTime()) / 1000 < ONLINE_THRESHOLD_SEC;
+      } catch { return false; }
+    }
+
+    function formatMessageTime(iso) {
+      try {
+        const d = new Date(iso);
+        const now = new Date();
+        if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+        return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+      } catch { return iso; }
+    }
 
     function selectUserAndLoad(u, highlightEl) {
       selectedUser = u;
-      loadConversation(u.id, u.username);
+      if (chatPlaceholder) chatPlaceholder.style.display = 'none';
+      if (chatPanel) chatPanel.style.display = 'flex';
+      if (convHeaderName) convHeaderName.textContent = u.username;
+      if (convHeaderAvatar) {
+        convHeaderAvatar.innerHTML = u.avatar
+          ? `<img src="${u.avatar.startsWith('http') ? u.avatar : getServerOrigin() + '/api/files/' + u.avatar.replace(/^uploads[\/\\]/, '').replace(/\\/g, '/')}" alt="">`
+          : `<span class="conv-avatar-letter">${(u.username || '?').charAt(0).toUpperCase()}</span>`;
+      }
+      if (convHeaderStatus) {
+        const online = isUserOnline(u);
+        convHeaderStatus.textContent = online ? (I18n.t('online') || 'Online') : (I18n.t('offline') || 'Offline');
+        convHeaderStatus.classList.toggle('online', online);
+      }
+      loadConversation(u.id, u.username, true);
       [conversationsList, recommendationsList, usersList].forEach(el => {
         if (!el) return;
-        el.querySelectorAll('.user-item').forEach(item => item.classList.remove('selected'));
+        el.querySelectorAll('.messages-conv-item').forEach(item => item.classList.remove('selected'));
       });
       if (highlightEl) highlightEl.classList.add('selected');
+      refreshConversationsList();
     }
 
-    function renderUserItem(u, container) {
+    function renderConversationItem(u, container) {
       if (!container) return;
-      const div = document.createElement('div');
-      div.className = 'user-item';
-      div.style.cursor = 'pointer';
+      const preview = u.lastMessageContent
+        ? (String(u.lastMessageFromUserId) === String(currentUser.id) ? (I18n.t('you') || 'You') + ': ' : '') + (u.lastMessageContent.length > 35 ? u.lastMessageContent.slice(0, 35) + '…' : u.lastMessageContent)
+        : (I18n.t('no_messages') || 'No messages yet');
+      const timeStr = u.lastMessageAt ? formatMessageTime(u.lastMessageAt) : '';
+      const online = isUserOnline(u);
+      const lastSeenId = getLastSeen(u.id);
+      const hasUnread = u.lastMessageId != null && u.lastMessageId > lastSeenId && String(u.lastMessageFromUserId) === String(u.id);
+      const avatarHtml = u.avatar
+        ? `<img class="conv-avatar" src="${u.avatar.startsWith('http') ? u.avatar : getServerOrigin() + '/api/files/' + u.avatar.replace(/^uploads[\/\\]/, '').replace(/\\/g, '/')}" alt="">`
+        : `<span class="conv-avatar-letter">${(u.username || '?').charAt(0).toUpperCase()}</span>`;
+      const div = document.createElement('button');
+      div.type = 'button';
+      div.className = 'messages-conv-item' + (selectedUser && String(selectedUser.id) === String(u.id) ? ' selected' : '');
       div.innerHTML = `
-        <div class="user-main">
-          <div class="avatar">${userAvatarHTML(u)}</div>
-          <div>
-            <strong>${escapeHtml(u.username)}</strong>
-            <div class="muted">${escapeHtml(u.email || '')}</div>
+        <span class="conv-avatar-wrap">${avatarHtml}</span>
+        <div class="conv-body">
+          <div class="conv-meta">
+            <span class="conv-name"><span class="messages-status-dot ${online ? 'online' : 'offline'}"></span>${escapeHtml(u.username)}</span>
+            ${timeStr ? `<span class="conv-time">${timeStr}</span>` : ''}
           </div>
+          <div class="conv-preview">${escapeHtml(preview)}</div>
         </div>
+        ${hasUnread ? '<span class="messages-unread-dot"></span>' : ''}
       `;
       div.addEventListener('click', () => selectUserAndLoad(u, div));
       container.appendChild(div);
     }
 
-    async function loadConversation(withUserId, withUsername) {
-      if (!convContainer || !convHeader) return;
-      convHeader.textContent = `Диалог с ${withUsername}`;
-      convContainer.innerHTML = '<p class="muted">Загрузка...</p>';
+    function renderBubble(msg, isOwn, avatarHtml) {
+      const wrap = document.createElement('div');
+      wrap.className = 'messages-bubble-wrap ' + (isOwn ? 'own' : 'other');
+      wrap.dataset.messageId = msg.id;
+      wrap.innerHTML = `
+        <span class="messages-bubble-avatar">${avatarHtml || ''}</span>
+        <div class="messages-bubble">
+          <div class="messages-bubble-text">${escapeHtml(msg.content || '')}</div>
+          <div class="messages-bubble-time">${formatMessageTime(msg.createdAt)}</div>
+        </div>
+      `;
+      return wrap;
+    }
+
+    async function refreshConversationsList() {
+      try {
+        const convResp = await window.API.Messages.getConversations();
+        if (!conversationsList) return;
+        conversationsList.innerHTML = '';
+        if (convResp.success && convResp.users && convResp.users.length) {
+          convResp.users.forEach(u => renderConversationItem(u, conversationsList));
+        } else {
+          conversationsList.innerHTML = '<p class="muted">' + (I18n.t('no_conversations') || 'No conversations yet') + '</p>';
+        }
+      } catch (e) {
+        if (conversationsList) conversationsList.innerHTML = '<p class="muted">' + (I18n.t('no_conversations') || 'No conversations') + '</p>';
+      }
+    }
+
+    function renderUserItem(u, container) {
+      renderConversationItem(u, container);
+    }
+
+    async function loadConversation(withUserId, withUsername, fullReload) {
+      if (!convContainer) return;
+      if (fullReload) {
+        convContainer.innerHTML = '<p class="muted">' + (I18n.t('loading') || 'Loading...') + '</p>';
+        lastLoadedMessageIds.clear();
+      }
       try {
         const resp = await window.API.Messages.getMessages(withUserId);
-        if (resp.success) {
-          convContainer.innerHTML = '';
-          if (resp.messages.length === 0) {
-            convContainer.innerHTML = '<p class="muted">Пока нет сообщений</p>';
-            return;
-          }
-          resp.messages.forEach(msg => {
-            const div = document.createElement('div');
-            const isOwn = String(msg.fromUserId) === String(currentUser.id);
-            div.style.marginBottom = '6px';
-            div.style.textAlign = isOwn ? 'right' : 'left';
-            div.innerHTML = `
-              <div style="display: inline-block; max-width: 80%; text-align: left; padding: 6px 8px; border-radius: 10px; background: ${isOwn ? '#dbeafe' : '#f3f4f6'};">
-                <div style="font-size: 0.8rem; color: #6b7280; margin-bottom: 2px;">
-                  ${escapeHtml(isOwn ? 'You' : msg.fromUsername)}
-                  <span style="margin-left: 4px;">${formatDate(msg.createdAt)}</span>
-                </div>
-                <div style="font-size: 0.9rem;">${escapeHtml(msg.content)}</div>
-              </div>
-            `;
-            convContainer.appendChild(div);
-          });
-          convContainer.scrollTop = convContainer.scrollHeight;
+        if (!resp.success || !resp.messages) {
+          if (fullReload) convContainer.innerHTML = '<p class="muted">' + (I18n.t('no_messages') || 'No messages yet') + '</p>';
+          return;
         }
+        const messages = resp.messages;
+        if (messages.length === 0) {
+          if (fullReload) convContainer.innerHTML = '<p class="muted">' + (I18n.t('no_messages') || 'No messages yet') + '</p>';
+          return;
+        }
+        const partner = selectedUser && String(selectedUser.id) === String(withUserId) ? selectedUser : { id: withUserId, username: withUsername };
+        const partnerAvatarHtml = partner.avatar
+          ? `<img src="${partner.avatar.startsWith('http') ? partner.avatar : getServerOrigin() + '/api/files/' + partner.avatar.replace(/^uploads[\/\\]/, '').replace(/\\/g, '/')}" alt="">`
+          : `<span class="conv-avatar-letter">${(withUsername || '?').charAt(0).toUpperCase()}</span>`;
+        const myAvatarHtml = currentUser.avatar
+          ? `<img src="${currentUser.avatar.startsWith('http') ? currentUser.avatar : getServerOrigin() + '/api/files/' + currentUser.avatar.replace(/^uploads[\/\\]/, '').replace(/\\/g, '/')}" alt="">`
+          : `<span class="conv-avatar-letter">${(currentUser.username || '?').charAt(0).toUpperCase()}</span>`;
+
+        if (fullReload) {
+          convContainer.innerHTML = '';
+          messages.forEach(msg => {
+            const isOwn = String(msg.fromUserId) === String(currentUser.id);
+            const bubble = renderBubble(msg, isOwn, isOwn ? myAvatarHtml : partnerAvatarHtml);
+            convContainer.appendChild(bubble);
+            lastLoadedMessageIds.add(msg.id);
+          });
+        } else {
+          const toAppend = messages.filter(msg => !lastLoadedMessageIds.has(msg.id));
+          toAppend.forEach(msg => {
+            const isOwn = String(msg.fromUserId) === String(currentUser.id);
+            const bubble = renderBubble(msg, isOwn, isOwn ? myAvatarHtml : partnerAvatarHtml);
+            convContainer.appendChild(bubble);
+            lastLoadedMessageIds.add(msg.id);
+          });
+        }
+        convContainer.scrollTop = convContainer.scrollHeight;
+        const lastMsg = messages[messages.length - 1];
+        if (lastMsg) setLastSeen(withUserId, lastMsg.id);
       } catch (error) {
-        convContainer.innerHTML = `<p class="error-text">Ошибка загрузки: ${error.message}</p>`;
+        if (fullReload) convContainer.innerHTML = '<p class="error-text">' + escapeHtml(error.message) + '</p>';
       }
     }
 
@@ -1412,19 +1701,17 @@ const App = {
       if (!q) return;
       try {
         const resp = await window.API.User.searchUsers(q);
-        if (resp.success) {
+        if (resp.success && resp.users) {
           resp.users.forEach(u => {
             if (String(u.id) === String(currentUser.id)) return;
-            const div = document.createElement('div');
-            div.className = 'user-item';
-            div.style.cursor = 'pointer';
+            const div = document.createElement('button');
+            div.type = 'button';
+            div.className = 'messages-conv-item';
             div.innerHTML = `
-              <div class="user-main">
-                <div class="avatar">${userAvatarHTML(u)}</div>
-                <div>
-                  <strong>${escapeHtml(u.username)}</strong>
-                  <div class="muted">${escapeHtml(u.email || '')}</div>
-                </div>
+              <span class="conv-avatar-wrap">${u.avatar ? `<img class="conv-avatar" src="${u.avatar.startsWith('http') ? u.avatar : getServerOrigin() + '/api/files/' + u.avatar.replace(/^uploads[\/\\]/, '').replace(/\\/g, '/')}" alt="">` : `<span class="conv-avatar-letter">${(u.username || '?').charAt(0).toUpperCase()}</span>`}</span>
+              <div class="conv-body">
+                <div class="conv-name"><span class="messages-status-dot offline"></span>${escapeHtml(u.username)}</div>
+                <div class="conv-preview">${escapeHtml(u.email || '')}</div>
               </div>
             `;
             div.addEventListener('click', () => selectUserAndLoad(u, div));
@@ -1432,7 +1719,7 @@ const App = {
           });
         }
       } catch (error) {
-        usersList.innerHTML = `<p class="error-text">Ошибка поиска: ${error.message}</p>`;
+        usersList.innerHTML = '<p class="error-text">' + escapeHtml(error.message) + '</p>';
       }
     }
 
@@ -1449,7 +1736,7 @@ const App = {
         const convResp = await window.API.Messages.getConversations();
         if (conversationsList && convResp.success && convResp.users && convResp.users.length) {
           conversationsList.innerHTML = '';
-          convResp.users.forEach(u => renderUserItem(u, conversationsList));
+          convResp.users.forEach(u => renderConversationItem(u, conversationsList));
         } else if (conversationsList) {
           conversationsList.innerHTML = '<p class="muted">' + (I18n.t('no_conversations') || 'No conversations yet') + '</p>';
         }
@@ -1462,11 +1749,11 @@ const App = {
         const toShow = users.filter(u => String(u.id) !== String(currentUser.id)).slice(0, 10);
         if (recommendationsList) {
           recommendationsList.innerHTML = '';
-          if (toShow.length) toShow.forEach(u => renderUserItem(u, recommendationsList));
+          if (toShow.length) toShow.forEach(u => renderConversationItem(u, recommendationsList));
           else {
             const recentResp = await window.API.User.getRecentUsers();
             const recent = (recentResp.users || []).filter(u => String(u.id) !== String(currentUser.id)).slice(0, 5);
-            recent.forEach(u => renderUserItem(u, recommendationsList));
+            recent.forEach(u => renderConversationItem(u, recommendationsList));
             if (recent.length === 0) recommendationsList.innerHTML = '<p class="muted">' + (I18n.t('no_recommendations_msg') || 'No users to recommend') + '</p>';
           }
         }
@@ -1476,7 +1763,7 @@ const App = {
           const recent = (recentResp.users || []).filter(u => String(u.id) !== String(currentUser.id)).slice(0, 5);
           if (recommendationsList) {
             recommendationsList.innerHTML = '';
-            if (recent.length) recent.forEach(u => renderUserItem(u, recommendationsList));
+            if (recent.length) recent.forEach(u => renderConversationItem(u, recommendationsList));
             else recommendationsList.innerHTML = '<p class="muted">' + (I18n.t('no_recommendations_msg') || 'No users to recommend') + '</p>';
           }
         } catch (e2) {
@@ -1486,20 +1773,30 @@ const App = {
     })();
 
     if (sendBtn && inputEl) {
-      sendBtn.addEventListener('click', async () => {
+      function sendMessage() {
         const text = inputEl.value.trim();
         if (!text || !selectedUser) return;
-        try {
-          const resp = await window.API.Messages.sendMessage(selectedUser.id, text);
+        window.API.Messages.sendMessage(selectedUser.id, text).then(resp => {
           if (resp.success) {
             inputEl.value = '';
-            await loadConversation(selectedUser.id, selectedUser.username);
+            lastLoadedMessageIds.clear();
+            loadConversation(selectedUser.id, selectedUser.username, true);
           }
-        } catch (error) {
-          alert('Ошибка: ' + error.message);
+        }).catch(err => alert('Ошибка: ' + err.message));
+      }
+      sendBtn.addEventListener('click', sendMessage);
+      inputEl.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          sendMessage();
         }
       });
     }
+
+    setInterval(() => {
+      if (!selectedUser) return;
+      loadConversation(selectedUser.id, selectedUser.username, false);
+    }, POLLING_INTERVAL_MS);
   },
 
   refreshCurrentPage: null
@@ -1507,6 +1804,15 @@ const App = {
 
 window.App = App;
 document.addEventListener('DOMContentLoaded', () => {
+  const themeBtn = document.getElementById('themeToggle');
+  if (themeBtn) {
+    themeBtn.addEventListener('click', () => {
+      const t = getTheme() === 'dark' ? 'light' : 'dark';
+      setTheme(t);
+      applyTheme(t);
+    });
+    applyTheme(getTheme());
+  }
   const loginForm = document.getElementById('loginForm');
   const registerForm = document.getElementById('registerForm');
   if (loginForm || registerForm) {
