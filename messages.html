@@ -30,48 +30,185 @@
         <button type="button" id="themeToggle" class="theme-toggle" aria-label="Theme">🌓 <span id="themeToggleLabel">Dark</span></button>
         <button id="logoutBtn" class="btn ghost" data-i18n="nav_logout">Выйти</button>
       </nav>
+      <button type="button" class="nav-hamburger" id="navHamburger" aria-label="Menu" aria-expanded="false"><span></span><span></span><span></span></button>
     </header>
+    <div class="nav-overlay" id="navOverlay" aria-hidden="true">
+      <nav class="nav nav-overlay-nav">
+        <a href="feed.html" class="nav-link" data-i18n="nav_feed">Лента</a>
+        <a href="messages.html" class="nav-link active" data-i18n="nav_messages">Сообщения</a>
+        <a href="profile.html" class="nav-link" data-i18n="nav_profile">Профиль</a>
+        <select id="languageSelectMobile" class="language-select"><option value="cs">Čeština</option><option value="ru">Русский</option><option value="en">English</option></select>
+        <button type="button" id="themeToggleMobile" class="theme-toggle">🌓 <span id="themeToggleLabelMobile">Dark</span></button>
+        <button id="logoutBtnMobile" class="btn ghost" data-i18n="nav_logout">Выйти</button>
+      </nav>
+    </div>
 
     <main class="messages-layout">
       <section class="messages-sidebar card">
         <div class="messages-search-wrap">
-          <input type="text" id="messagesSearchInput" class="messages-search-input" data-i18n="messages_search_placeholder" placeholder="Search by username or email...">
+          <input type="text" id="messagesSearchInput" class="messages-search-input" placeholder="" data-i18n="messages_search_placeholder">
         </div>
-        <div id="messagesUsersList" class="messages-user-list"></div>
+        <div class="messages-actions-row">
+          <button type="button" id="messengerCreateRoomBtn" class="btn primary small" data-i18n="messenger_new_room">Новый чат</button>
+        </div>
         <div class="messages-conversations-wrap">
-          <h3 class="messages-list-title" data-i18n="messages_recent">Recent conversations</h3>
-          <div id="messagesConversationsList" class="messages-conversations-list"></div>
+          <h3 class="messages-list-title" data-i18n="messenger_rooms">Чаты и треды</h3>
+          <div id="messagesRoomsList" class="messages-conversations-list"></div>
         </div>
         <div class="messages-recommendations-wrap">
-          <h3 class="messages-list-title" data-i18n="messages_recommendations">Recommendations — write to</h3>
+          <h3 class="messages-list-title" data-i18n="messages_recommendations">Recommendations</h3>
           <div id="messagesRecommendationsList" class="messages-conversations-list"></div>
         </div>
       </section>
 
-      <section class="messages-chat card">
-        <div id="messagesChatPlaceholder" class="messages-chat-placeholder" data-i18n="messages_choose_user">Choose a user on the left</div>
-        <div id="messagesChatPanel" class="messages-chat-panel" style="display: none;">
-          <div id="messagesConversationHeader" class="messages-chat-header">
-            <div class="messages-chat-header-user">
-              <span class="messages-chat-header-avatar" id="messagesChatHeaderAvatar"></span>
-              <div>
-                <span id="messagesChatHeaderName" class="messages-chat-header-name"></span>
-                <span id="messagesChatHeaderStatus" class="messages-chat-header-status"></span>
-              </div>
-            </div>
-          </div>
-          <div id="messagesConversation" class="messages-conversation"></div>
-          <div class="messages-input-wrap">
-            <textarea id="messagesInput" class="messages-input" rows="2" data-i18n="messages_placeholder" placeholder="Write a message... (Enter to send, Shift+Enter for new line)"></textarea>
-            <button id="messagesSendBtn" class="btn primary messages-send-btn" type="button" data-i18n="messages_send">Send</button>
-          </div>
-        </div>
-      </section>
+      <div id="messagesChatPlaceholder" class="messages-chat-placeholder messages-chat-placeholder-center" data-i18n="messenger_choose_room">Выберите чат слева или создайте новый</div>
     </main>
 
     <footer class="app-footer">
       <p data-i18n="messages_footer">Messages are stored on the server in SQL database with encryption.</p>
     </footer>
+  </div>
+
+  <!-- Плавающая кнопка чата (мобильные) -->
+  <button type="button" class="messenger-fab" id="messengerFab" aria-label="Chat">💬<span class="messenger-fab-badge hidden" id="messengerFabBadge">0</span></button>
+
+  <!-- Плавающая панель чата справа -->
+  <div id="messengerFloatingPanel" class="messenger-floating-panel" aria-hidden="true">
+    <div class="messenger-panel-inner">
+      <div class="messenger-panel-header">
+        <div class="messenger-panel-title-row">
+          <button type="button" class="messenger-close-btn mobile-only" id="messengerCloseBtn" aria-label="Close">←</button>
+          <span id="messengerRoomTitle" class="messenger-room-title"></span>
+          <span id="messengerRoomBadge" class="messenger-room-badge hidden"></span>
+          <div class="messenger-header-actions">
+            <button type="button" class="messenger-icon-btn" id="messengerHelpBtn">?</button>
+            <button type="button" class="messenger-icon-btn" id="messengerMinimizeBtn">−</button>
+          </div>
+        </div>
+        <div class="messenger-search-wrap">
+          <input type="text" id="messengerSearchInput" class="messenger-search-input" placeholder="" data-i18n="messenger_search_messages" maxlength="100">
+          <select id="messengerFilterAuthor" class="messenger-filter-select">
+            <option value=""></option>
+          </select>
+          <input type="date" id="messengerFilterDate" class="messenger-filter-date">
+        </div>
+        <div id="messengerTypingIndicator" class="messenger-typing-indicator hidden" data-i18n="messenger_typing">печатает...</div>
+        <label class="messenger-autoscroll-label">
+          <input type="checkbox" id="messengerAutoscroll" checked>
+          <span data-i18n="messenger_autoscroll">Автопрокрутка</span>
+        </label>
+        <div class="messenger-room-actions">
+          <button type="button" class="btn ghost small" id="messengerAddMembersBtn" data-i18n="messenger_add_members_btn">+ Участники</button>
+        </div>
+      </div>
+      <div class="messenger-resize-handle" id="messengerResizeHandle"></div>
+      <div id="messengerMessages" class="messenger-messages"></div>
+      <div id="messengerNewMessageBanner" class="messenger-new-message-banner hidden">
+        <button type="button" id="messengerNewMessageBtn" data-i18n="messenger_new_message_click">Новое сообщение! Нажмите, чтобы перейти</button>
+      </div>
+      <div class="messenger-input-area">
+        <div id="messengerMutedBanner" class="messenger-muted-banner hidden"></div>
+        <div id="messengerReplyRef" class="messenger-reply-ref hidden"></div>
+        <div class="messenger-input-row">
+          <textarea id="messengerInput" class="messenger-input" rows="2" placeholder="" data-i18n="messages_placeholder" maxlength="2000"></textarea>
+          <button type="button" id="messengerEmojiBtn" class="btn ghost messenger-emoji-btn" title="Emoji" aria-label="Emoji">😀</button>
+        </div>
+        <div id="messengerEmojiPicker" class="messenger-emoji-picker hidden"></div>
+        <div class="messenger-input-actions">
+          <label class="messenger-anonymous-label">
+            <input type="checkbox" id="messengerAnonymous" value="1">
+            <span data-i18n="comment_anonymous">Анонимно</span>
+          </label>
+          <button type="button" id="messengerSendBtn" class="btn primary small" data-i18n="messages_send">Отправить</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Модал: участники (добавить / удалить / мут) -->
+  <div id="messengerMembersModal" class="messenger-modal hidden">
+    <div class="messenger-modal-backdrop"></div>
+    <div class="messenger-modal-content card">
+      <h3 data-i18n="messenger_members">Участники</h3>
+      <div class="messenger-members-search-wrap">
+        <input type="text" id="messengerAddMemberSearch" class="input" placeholder="" data-i18n="messenger_search_user">
+        <button type="button" class="btn primary small" id="messengerAddMemberBtn" data-i18n="messenger_add">Добавить</button>
+      </div>
+      <div id="messengerMembersList" class="messenger-members-list"></div>
+      <button type="button" class="btn ghost" id="messengerMembersModalClose" data-i18n="cancel">Закрыть</button>
+    </div>
+  </div>
+
+  <!-- Модал: мут пользователя -->
+  <div id="messengerMuteModal" class="messenger-modal hidden">
+    <div class="messenger-modal-backdrop"></div>
+    <div class="messenger-modal-content card">
+      <h3 data-i18n="messenger_mute_user">Замутить пользователя</h3>
+      <p id="messengerMuteTargetName" class="muted"></p>
+      <div class="messenger-form-group">
+        <label data-i18n="messenger_mute_minutes">Минут</label>
+        <select id="messengerMuteMinutes" class="input">
+          <option value="15">15</option>
+          <option value="60" selected>60 (1 час)</option>
+          <option value="1440">1440 (1 день)</option>
+          <option value="10080">10080 (1 неделя)</option>
+        </select>
+      </div>
+      <div class="messenger-modal-actions">
+        <button type="button" class="btn primary" id="messengerMuteConfirm" data-i18n="messenger_mute">Замутить</button>
+        <button type="button" class="btn ghost" id="messengerMuteCancel" data-i18n="cancel">Отмена</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Подсказка Help -->
+  <div id="messengerHelpPopup" class="messenger-help-popup hidden">
+    <div class="messenger-help-content">
+      <h4 data-i18n="messenger_help_title">Помощь</h4>
+      <ul>
+        <li data-i18n="messenger_help_search">Поиск: введите слово для фильтрации и подсветки сообщений</li>
+        <li data-i18n="messenger_help_mute">Мут: админ может замутить участника на время</li>
+        <li data-i18n="messenger_help_members">Участники: добавляйте и удаляйте участников группы</li>
+        <li data-i18n="messenger_help_anonymous">Анонимно: отправляйте сообщения без отображения ника</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Модальное окно создания комнаты -->
+  <div id="messengerCreateRoomModal" class="messenger-modal hidden">
+    <div class="messenger-modal-backdrop"></div>
+    <div class="messenger-modal-content card">
+      <h3 data-i18n="messenger_new_room">Новый чат</h3>
+      <div class="messenger-form-group">
+        <label data-i18n="messenger_room_title">Название (для группы)</label>
+        <input type="text" id="createRoomTitle" class="input" placeholder="">
+      </div>
+      <div class="messenger-form-group">
+        <label data-i18n="messenger_room_type">Тип</label>
+        <select id="createRoomType" class="input">
+          <option value="dm" data-i18n="messenger_type_dm">Личный чат (ДМ)</option>
+          <option value="group" data-i18n="messenger_type_group">Группа / тред</option>
+        </select>
+      </div>
+      <div class="messenger-form-group messenger-form-inline">
+        <label><input type="checkbox" id="createRoomAnonymous"> <span data-i18n="comment_anonymous">Анонимно</span></label>
+      </div>
+      <div class="messenger-form-group">
+        <label data-i18n="messenger_expires">Срок жизни (дней, пусто = бессрочно)</label>
+        <input type="number" id="createRoomExpires" class="input" min="1" placeholder="7">
+      </div>
+      <div class="messenger-form-group messenger-form-inline">
+        <label><input type="checkbox" id="createRoomPublic" checked> <span data-i18n="messenger_public">Публичная комната</span></label>
+      </div>
+      <div class="messenger-form-group" id="createRoomMembersWrap">
+        <label data-i18n="messenger_add_members">Добавить участников (для группы)</label>
+        <input type="text" id="createRoomMembersInput" class="input" placeholder="">
+      </div>
+      <div class="messenger-modal-actions">
+        <button type="button" id="messengerCreateRoomSubmit" class="btn primary" data-i18n="messenger_create">Создать</button>
+        <button type="button" id="messengerCreateRoomCancel" class="btn ghost" data-i18n="cancel">Отмена</button>
+      </div>
+    </div>
   </div>
 
   <script src="translations.js"></script>
@@ -81,10 +218,8 @@
     document.addEventListener('DOMContentLoaded', () => {
       if (!window.App) return;
       App.requireAuth();
-      App.renderMessagesPage();
-      if (window.I18n) {
-        window.I18n.apply(document);
-      }
+      App.renderMessengerPage();
+      if (window.I18n) window.I18n.apply(document);
     });
   </script>
 </body>

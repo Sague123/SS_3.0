@@ -176,7 +176,99 @@ def init_database():
     except sqlite3.OperationalError:
         cursor.execute('ALTER TABLE Users ADD COLUMN profileGradient TEXT DEFAULT NULL')
         conn.commit()
-    
+
+    try:
+        cursor.execute('SELECT isAnonymous FROM Posts LIMIT 1')
+    except sqlite3.OperationalError:
+        cursor.execute('ALTER TABLE Posts ADD COLUMN isAnonymous INTEGER DEFAULT 0')
+        conn.commit()
+
+    try:
+        cursor.execute('SELECT isAnonymous FROM Comments LIMIT 1')
+    except sqlite3.OperationalError:
+        cursor.execute('ALTER TABLE Comments ADD COLUMN isAnonymous INTEGER DEFAULT 0')
+        conn.commit()
+
+    # Мессенджер: комнаты (треды/группы), участники, сообщения, реакции
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS ChatRoom (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT,
+            type TEXT NOT NULL DEFAULT 'group',
+            isAnonymous INTEGER DEFAULT 0,
+            expiresAt TEXT,
+            isPublic INTEGER DEFAULT 1,
+            createdById INTEGER NOT NULL,
+            createdAt TEXT NOT NULL,
+            FOREIGN KEY (createdById) REFERENCES Users(id) ON DELETE CASCADE
+        )
+    ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS ChatRoomMember (
+            roomId INTEGER NOT NULL,
+            userId INTEGER NOT NULL,
+            joinedAt TEXT NOT NULL,
+            PRIMARY KEY (roomId, userId),
+            FOREIGN KEY (roomId) REFERENCES ChatRoom(id) ON DELETE CASCADE,
+            FOREIGN KEY (userId) REFERENCES Users(id) ON DELETE CASCADE
+        )
+    ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS RoomMessage (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            roomId INTEGER NOT NULL,
+            fromUserId INTEGER NOT NULL,
+            content TEXT NOT NULL,
+            isAnonymous INTEGER DEFAULT 0,
+            replyToId INTEGER,
+            createdAt TEXT NOT NULL,
+            FOREIGN KEY (roomId) REFERENCES ChatRoom(id) ON DELETE CASCADE,
+            FOREIGN KEY (fromUserId) REFERENCES Users(id) ON DELETE CASCADE,
+            FOREIGN KEY (replyToId) REFERENCES RoomMessage(id) ON DELETE SET NULL
+        )
+    ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS RoomMessageReaction (
+            messageId INTEGER NOT NULL,
+            userId INTEGER NOT NULL,
+            emoji TEXT NOT NULL DEFAULT 'heart',
+            createdAt TEXT NOT NULL,
+            PRIMARY KEY (messageId, userId),
+            FOREIGN KEY (messageId) REFERENCES RoomMessage(id) ON DELETE CASCADE,
+            FOREIGN KEY (userId) REFERENCES Users(id) ON DELETE CASCADE
+        )
+    ''')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_chatroom_created ON ChatRoom(createdAt)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_roommember_room ON ChatRoomMember(roomId)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_roommember_user ON ChatRoomMember(userId)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_roommessage_room ON RoomMessage(roomId)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_roommessage_created ON RoomMessage(createdAt)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_roomreaction_message ON RoomMessageReaction(messageId)')
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS ChatRoomAdmin (
+            roomId INTEGER NOT NULL,
+            userId INTEGER NOT NULL,
+            PRIMARY KEY (roomId, userId),
+            FOREIGN KEY (roomId) REFERENCES ChatRoom(id) ON DELETE CASCADE,
+            FOREIGN KEY (userId) REFERENCES Users(id) ON DELETE CASCADE
+        )
+    ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS ChatRoomMute (
+            roomId INTEGER NOT NULL,
+            userId INTEGER NOT NULL,
+            mutedUntil TEXT NOT NULL,
+            mutedById INTEGER NOT NULL,
+            createdAt TEXT NOT NULL,
+            PRIMARY KEY (roomId, userId),
+            FOREIGN KEY (roomId) REFERENCES ChatRoom(id) ON DELETE CASCADE,
+            FOREIGN KEY (userId) REFERENCES Users(id) ON DELETE CASCADE,
+            FOREIGN KEY (mutedById) REFERENCES Users(id) ON DELETE CASCADE
+        )
+    ''')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_roommute_room ON ChatRoomMute(roomId)')
+
     conn.commit()
     conn.close()
     print("База данных успешно инициализирована!")

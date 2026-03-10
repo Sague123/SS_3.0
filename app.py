@@ -32,6 +32,19 @@ def get_current_user_id():
     return session.get('user_id')
 
 
+# Цвета для анонимных аватаров (стабильный выбор по seed)
+ANONYMOUS_COLORS = [
+    '#6366f1', '#ec4899', '#14b8a6', '#f59e0b', '#8b5cf6',
+    '#06b6d4', '#84cc16', '#f43f5e', '#3b82f6', '#a855f7'
+]
+
+
+def get_anonymous_color(seed):
+    if seed is None:
+        return ANONYMOUS_COLORS[0]
+    return ANONYMOUS_COLORS[abs(hash(seed)) % len(ANONYMOUS_COLORS)]
+
+
 def update_user_last_active(user_id):
     if not user_id:
         return
@@ -214,7 +227,7 @@ def get_posts():
         
         if user_id_filter:
             cursor.execute('''
-                SELECT id, userId, content, mood, createdAt, attentionSum, viewsCount
+                SELECT id, userId, content, mood, createdAt, attentionSum, viewsCount, isAnonymous
                 FROM Posts
                 WHERE userId = ?
                 ORDER BY createdAt DESC
@@ -222,7 +235,7 @@ def get_posts():
             own_posts = [dict(row) for row in cursor.fetchall()]
             cursor.execute('''
                 SELECT r.id as repostId, r.originalPostId, r.userId as repostedByUserId, r.createdAt as repostedAt,
-                       p.id as id, p.userId as userId, p.content, p.mood, p.createdAt, p.attentionSum, p.viewsCount
+                       p.id as id, p.userId as userId, p.content, p.mood, p.createdAt, p.attentionSum, p.viewsCount, p.isAnonymous
                 FROM Reposts r
                 JOIN Posts p ON p.id = r.originalPostId
                 WHERE r.userId = ?
@@ -240,6 +253,7 @@ def get_posts():
                     'createdAt': r['createdAt'],
                     'attentionSum': r['attentionSum'],
                     'viewsCount': r['viewsCount'],
+                    'isAnonymous': r.get('isAnonymous', 0),
                     'isRepost': True,
                     'repostedByUserId': r['repostedByUserId'],
                     'repostedAt': r['repostedAt'],
@@ -252,7 +266,7 @@ def get_posts():
             posts.sort(key=sort_key, reverse=True)
         else:
             cursor.execute('''
-                SELECT id, userId, content, mood, createdAt, attentionSum, viewsCount
+                SELECT id, userId, content, mood, createdAt, attentionSum, viewsCount, isAnonymous
                 FROM Posts
                 ORDER BY createdAt DESC
             ''')
@@ -260,6 +274,8 @@ def get_posts():
         
         for post in posts:
             post.setdefault('mood', 'happy')
+            post['isAnonymous'] = bool(post.get('isAnonymous', 0))
+            post['anonymousColor'] = get_anonymous_color(post['id']) if post['isAnonymous'] else None
             cursor.execute('''
                 SELECT id, fileName, filePath, fileType
                 FROM Files
@@ -316,18 +332,19 @@ def create_post():
     mood = (request.form.get('mood') or 'happy').strip().lower()
     if mood not in ('happy', 'sad', 'inspired', 'thinking', 'dark'):
         mood = 'happy'
-    
+    anonymous = request.form.get('anonymous', '').strip().lower() in ('1', 'true', 'yes', 'on')
+
     if not content and not file:
         return jsonify({'success': False, 'message': 'Пост не может быть пустым'}), 400
-    
+
     conn = get_db_connection()
     cursor = conn.cursor()
-    
+
     created_at = datetime.now().isoformat()
     cursor.execute('''
-        INSERT INTO Posts (userId, content, mood, createdAt)
-        VALUES (?, ?, ?, ?)
-    ''', (user_id, content, mood, created_at))
+        INSERT INTO Posts (userId, content, mood, createdAt, isAnonymous)
+        VALUES (?, ?, ?, ?, ?)
+    ''', (user_id, content, mood, created_at, 1 if anonymous else 0))
     
     post_id = cursor.lastrowid
     
@@ -344,11 +361,13 @@ def create_post():
     conn.commit()
     
     cursor.execute('''
-        SELECT id, userId, content, mood, createdAt, attentionSum, viewsCount
+        SELECT id, userId, content, mood, createdAt, attentionSum, viewsCount, isAnonymous
         FROM Posts
         WHERE id = ?
     ''', (post_id,))
     post = dict(cursor.fetchone())
+    post['isAnonymous'] = bool(post.get('isAnonymous'))
+    post['anonymousColor'] = get_anonymous_color(post_id) if post['isAnonymous'] else None
     
     cursor.execute('''
         SELECT id, fileName, filePath, fileType
@@ -371,6 +390,51 @@ def create_post():
         'message': 'Пост создан',
         'post': post
     }), 201
+
+
+@app.route('/api/posts/<int:post_id>', methods=['GET'])
+def get_post(post_id):
+    """Один пост для страницы треда."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT id, userId, content, mood, createdAt, attentionSum, viewsCount, isAnonymous
+        FROM Posts WHERE id = ?
+    ''', (post_id,))
+    row = cursor.fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'success': False, 'message': 'Пост не найден'}), 404
+    post = dict(row)
+    post['isAnonymous'] = bool(post.get('isAnonymous', 0))
+    post['anonymousColor'] = get_anonymous_color(post['id']) if post['isAnonymous'] else None
+    cursor.execute('SELECT id, fileName, filePath, fileType FROM Files WHERE postId = ?', (post_id,))
+    post['files'] = [dict(r) for r in cursor.fetchall()]
+    cursor.execute('SELECT reactionType, COUNT(*) as cnt FROM Likes WHERE postId = ? GROUP BY reactionType', (post_id,))
+    post['reactionCounts'] = {'heart': 0, 'fire': 0, 'laugh': 0, 'wow': 0}
+    for r in cursor.fetchall():
+        t = (r['reactionType'] or 'heart').lower()
+        if t in post['reactionCounts']:
+            post['reactionCounts'][t] = r['cnt']
+    post['likesCount'] = sum(post['reactionCounts'].values())
+    cursor.execute('SELECT COUNT(*) as c FROM Comments WHERE postId = ?', (post_id,))
+    post['commentsCount'] = cursor.fetchone()['c']
+    cursor.execute('SELECT COUNT(*) as c FROM Reposts WHERE originalPostId = ?', (post_id,))
+    post['repostsCount'] = cursor.fetchone()['c']
+    current_user_id = get_current_user_id()
+    if current_user_id:
+        cursor.execute('SELECT reactionType FROM Likes WHERE postId = ? AND userId = ?', (post_id, current_user_id))
+        r = cursor.fetchone()
+        post['liked'] = r is not None
+        post['currentUserReaction'] = (r['reactionType'] or 'heart').lower() if r else None
+        cursor.execute('SELECT id FROM Reposts WHERE originalPostId = ? AND userId = ?', (post_id, current_user_id))
+        post['reposted'] = cursor.fetchone() is not None
+    else:
+        post['liked'] = False
+        post['currentUserReaction'] = None
+        post['reposted'] = False
+    conn.close()
+    return jsonify({'success': True, 'post': post})
 
 
 @app.route('/api/posts/<int:post_id>', methods=['DELETE'])
@@ -483,20 +547,36 @@ def toggle_like(post_id):
 def get_comments(post_id):
     conn = get_db_connection()
     cursor = conn.cursor()
-    
+    sort = (request.args.get('sort') or 'latest').strip().lower()
+    if sort != 'hot':
+        sort = 'latest'
+    limit = min(100, max(1, int(request.args.get('limit', 50))))
+    offset = max(0, int(request.args.get('offset', 0)))
+    order_sql = 'ORDER BY c.createdAt DESC' if sort == 'latest' else '''ORDER BY (
+        SELECT COUNT(*) FROM CommentLikes cl WHERE cl.commentId = c.id
+    ) DESC, c.createdAt DESC'''
+    cursor.execute('SELECT COUNT(*) as total FROM Comments WHERE postId = ?', (post_id,))
+    total_count = cursor.fetchone()['total']
     cursor.execute('''
-        SELECT c.id, c.postId, c.userId, c.content, c.createdAt,
+        SELECT c.id, c.postId, c.userId, c.content, c.createdAt, c.isAnonymous,
                u.username, u.avatar
         FROM Comments c
         JOIN Users u ON c.userId = u.id
         WHERE c.postId = ?
-        ORDER BY c.createdAt ASC
-    ''', (post_id,))
-    
+        ''' + order_sql + '''
+        LIMIT ? OFFSET ?
+    ''', (post_id, limit, offset))
     comments = []
     current_user_id = get_current_user_id()
     for row in cursor.fetchall():
         comment = dict(row)
+        comment['isAnonymous'] = bool(comment.get('isAnonymous', 0))
+        if comment['isAnonymous']:
+            comment['username'] = 'Anonymous'
+            comment['avatar'] = None
+            comment['anonymousColor'] = get_anonymous_color(comment['id'])
+        else:
+            comment['anonymousColor'] = None
         cursor.execute('SELECT reactionType, COUNT(*) as cnt FROM CommentLikes WHERE commentId = ? GROUP BY reactionType', (comment['id'],))
         comment['reactionCounts'] = {'heart': 0, 'fire': 0, 'laugh': 0, 'wow': 0}
         for r in cursor.fetchall():
@@ -510,10 +590,8 @@ def get_comments(post_id):
             if r:
                 comment['currentUserReaction'] = (r['reactionType'] or 'heart').lower()
         comments.append(comment)
-    
     conn.close()
-    
-    return jsonify({'success': True, 'comments': comments})
+    return jsonify({'success': True, 'comments': comments, 'totalCount': total_count})
 
 
 @app.route('/api/posts/<int:post_id>/comments', methods=['POST'])
@@ -524,7 +602,8 @@ def create_comment(post_id):
     
     data = request.get_json()
     content = data.get('content', '').strip()
-    
+    anonymous = data.get('anonymous', False) in (True, 'true', 1, '1')
+
     if not content:
         return jsonify({'success': False, 'message': 'Комментарий не может быть пустым'}), 400
     
@@ -538,14 +617,14 @@ def create_comment(post_id):
     
     created_at = datetime.now().isoformat()
     cursor.execute('''
-        INSERT INTO Comments (postId, userId, content, createdAt)
-        VALUES (?, ?, ?, ?)
-    ''', (post_id, user_id, content, created_at))
+        INSERT INTO Comments (postId, userId, content, createdAt, isAnonymous)
+        VALUES (?, ?, ?, ?, ?)
+    ''', (post_id, user_id, content, created_at, 1 if anonymous else 0))
     
     comment_id = cursor.lastrowid
     
     cursor.execute('''
-        SELECT c.id, c.postId, c.userId, c.content, c.createdAt,
+        SELECT c.id, c.postId, c.userId, c.content, c.createdAt, c.isAnonymous,
                u.username, u.avatar
         FROM Comments c
         JOIN Users u ON c.userId = u.id
@@ -553,6 +632,13 @@ def create_comment(post_id):
     ''', (comment_id,))
     
     comment = dict(cursor.fetchone())
+    comment['isAnonymous'] = bool(comment.get('isAnonymous', 0))
+    if comment['isAnonymous']:
+        comment['username'] = 'Anonymous'
+        comment['avatar'] = None
+        comment['anonymousColor'] = get_anonymous_color(comment['id'])
+    else:
+        comment['anonymousColor'] = None
     comment['reactionCounts'] = {'heart': 0, 'fire': 0, 'laugh': 0, 'wow': 0}
     comment['currentUserReaction'] = None
     
@@ -982,6 +1068,597 @@ def get_conversations():
     return jsonify({'success': True, 'users': users})
 
 
+# --- Мессенджер: комнаты (треды/группы) ---
+# Хранилище "typing" в памяти: room_id -> { user_id: timestamp }
+_room_typing = {}
+
+
+def _room_expired(expires_at):
+    if not expires_at:
+        return False
+    try:
+        return datetime.fromisoformat(expires_at) < datetime.now()
+    except Exception:
+        return False
+
+
+def _ensure_room_member(cursor, room_id, user_id):
+    cursor.execute('SELECT 1 FROM ChatRoomMember WHERE roomId = ? AND userId = ?', (room_id, user_id))
+    return cursor.fetchone() is not None
+
+
+def _is_room_admin(cursor, room_id, user_id):
+    cursor.execute('SELECT 1 FROM ChatRoom WHERE id = ? AND createdById = ?', (room_id, user_id))
+    if cursor.fetchone():
+        return True
+    cursor.execute('SELECT 1 FROM ChatRoomAdmin WHERE roomId = ? AND userId = ?', (room_id, user_id))
+    return cursor.fetchone() is not None
+
+
+def _is_user_muted(cursor, room_id, user_id):
+    cursor.execute('SELECT mutedUntil FROM ChatRoomMute WHERE roomId = ? AND userId = ?', (room_id, user_id))
+    row = cursor.fetchone()
+    if not row:
+        return False
+    try:
+        return datetime.fromisoformat(row['mutedUntil']) > datetime.now()
+    except Exception:
+        return False
+
+
+@app.route('/api/rooms', methods=['GET'])
+def get_rooms():
+    current_user_id = require_auth()
+    if not current_user_id:
+        return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
+    update_user_last_active(current_user_id)
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT r.id, r.title, r.type, r.isAnonymous, r.expiresAt, r.isPublic, r.createdById, r.createdAt
+        FROM ChatRoom r
+        JOIN ChatRoomMember m ON m.roomId = r.id
+        WHERE m.userId = ?
+    ''', (current_user_id,))
+    rooms = [dict(row) for row in cursor.fetchall()]
+    now = datetime.now().isoformat()
+    result = []
+    for r in rooms:
+        if _room_expired(r.get('expiresAt')):
+            continue
+        room_id = r['id']
+        cursor.execute('''
+            SELECT m.id, m.content, m.fromUserId, m.createdAt, m.isAnonymous
+            FROM RoomMessage m
+            WHERE m.roomId = ?
+            ORDER BY m.createdAt DESC LIMIT 1
+        ''', (room_id,))
+        last = cursor.fetchone()
+        if last:
+            r['lastMessageAt'] = last['createdAt']
+            r['lastMessageContent'] = last['content']
+            r['lastMessageFromUserId'] = last['fromUserId']
+            r['lastMessageId'] = last['id']
+        else:
+            r['lastMessageAt'] = r['createdAt']
+            r['lastMessageContent'] = None
+            r['lastMessageFromUserId'] = None
+            r['lastMessageId'] = None
+        cursor.execute('SELECT COUNT(*) AS c FROM RoomMessage WHERE roomId = ?', (room_id,))
+        r['messageCount'] = cursor.fetchone()['c']
+        cursor.execute('SELECT COUNT(DISTINCT userId) AS c FROM ChatRoomMember WHERE roomId = ?', (room_id,))
+        r['memberCount'] = cursor.fetchone()['c']
+        if r.get('type') == 'dm' and r['memberCount'] == 2:
+            cursor.execute('SELECT userId FROM ChatRoomMember WHERE roomId = ? AND userId != ?', (room_id, current_user_id))
+            other = cursor.fetchone()
+            if other:
+                cursor.execute('SELECT username FROM Users WHERE id = ?', (other['userId'],))
+                u = cursor.fetchone()
+                if u:
+                    r['title'] = u['username']
+        result.append(r)
+    conn.close()
+    result.sort(key=lambda x: (x.get('lastMessageAt') or ''), reverse=True)
+    return jsonify({'success': True, 'rooms': result})
+
+
+@app.route('/api/rooms', methods=['POST'])
+def create_room():
+    current_user_id = require_auth()
+    if not current_user_id:
+        return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
+    update_user_last_active(current_user_id)
+
+    data = request.get_json() or {}
+    title = (data.get('title') or '').strip() or None
+    room_type = data.get('type') or 'group'
+    is_anonymous = 1 if data.get('isAnonymous') else 0
+    expires_in_days = data.get('expiresInDays')
+    is_public = 1 if data.get('isPublic', True) else 0
+    member_ids = data.get('memberIds') or []
+
+    # DM: если уже есть комната с теми же двумя участниками — вернуть её
+    if room_type == 'dm' and len(member_ids) == 1:
+        other_id = None
+        try:
+            other_id = int(member_ids[0])
+        except (TypeError, ValueError):
+            pass
+        if other_id and other_id != current_user_id:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT r.id FROM ChatRoom r
+                JOIN ChatRoomMember m1 ON m1.roomId = r.id AND m1.userId = ?
+                JOIN ChatRoomMember m2 ON m2.roomId = r.id AND m2.userId = ?
+                WHERE r.type = 'dm'
+            ''', (current_user_id, other_id))
+            row = cursor.fetchone()
+            if row:
+                room_id = row['id']
+                cursor.execute('SELECT id, title, type, isAnonymous, expiresAt, isPublic, createdById, createdAt FROM ChatRoom WHERE id = ?', (room_id,))
+                room = dict(cursor.fetchone())
+                cursor.execute('SELECT COUNT(*) AS c FROM RoomMessage WHERE roomId = ?', (room_id,))
+                room['messageCount'] = cursor.fetchone()['c']
+                cursor.execute('SELECT COUNT(*) AS c FROM ChatRoomMember WHERE roomId = ?', (room_id,))
+                room['memberCount'] = cursor.fetchone()['c']
+                cursor.execute('SELECT id, content, fromUserId, createdAt FROM RoomMessage WHERE roomId = ? ORDER BY createdAt DESC LIMIT 1', (room_id,))
+                last = cursor.fetchone()
+                room['lastMessageAt'] = last['createdAt'] if last else room['createdAt']
+                room['lastMessageContent'] = last['content'] if last else None
+                room['lastMessageFromUserId'] = last['fromUserId'] if last else None
+                room['lastMessageId'] = last['id'] if last else None
+                conn.close()
+                return jsonify({'success': True, 'room': room})
+            conn.close()
+
+    expires_at = None
+    if expires_in_days is not None:
+        try:
+            from datetime import timedelta
+            expires_at = (datetime.now() + timedelta(days=int(expires_in_days))).isoformat()
+        except (TypeError, ValueError):
+            pass
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    created_at = datetime.now().isoformat()
+    cursor.execute('''
+        INSERT INTO ChatRoom (title, type, isAnonymous, expiresAt, isPublic, createdById, createdAt)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    ''', (title, room_type, is_anonymous, expires_at, is_public, current_user_id, created_at))
+    room_id = cursor.lastrowid
+    cursor.execute('INSERT INTO ChatRoomMember (roomId, userId, joinedAt) VALUES (?, ?, ?)',
+                   (room_id, current_user_id, created_at))
+    cursor.execute('INSERT OR IGNORE INTO ChatRoomAdmin (roomId, userId) VALUES (?, ?)', (room_id, current_user_id))
+    for uid in member_ids:
+        try:
+            uid = int(uid)
+            if uid != current_user_id:
+                cursor.execute('INSERT OR IGNORE INTO ChatRoomMember (roomId, userId, joinedAt) VALUES (?, ?, ?)',
+                               (room_id, uid, created_at))
+        except (TypeError, ValueError):
+            pass
+    conn.commit()
+
+    cursor.execute('SELECT id, title, type, isAnonymous, expiresAt, isPublic, createdById, createdAt FROM ChatRoom WHERE id = ?', (room_id,))
+    room = dict(cursor.fetchone())
+    room['lastMessageAt'] = created_at
+    room['lastMessageContent'] = None
+    room['messageCount'] = 0
+    room['memberCount'] = len(member_ids) + 1
+    conn.close()
+    return jsonify({'success': True, 'room': room})
+
+
+@app.route('/api/rooms/<int:room_id>', methods=['GET'])
+def get_room(room_id):
+    current_user_id = require_auth()
+    if not current_user_id:
+        return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT id, title, type, isAnonymous, expiresAt, isPublic, createdById, createdAt FROM ChatRoom WHERE id = ?', (room_id,))
+    row = cursor.fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'success': False, 'message': 'Комната не найдена'}), 404
+    room = dict(row)
+    if _room_expired(room.get('expiresAt')):
+        conn.close()
+        return jsonify({'success': False, 'message': 'Чат истёк'}), 410
+    if not _ensure_room_member(cursor, room_id, current_user_id):
+        conn.close()
+        return jsonify({'success': False, 'message': 'Нет доступа'}), 403
+    cursor.execute('SELECT COUNT(*) AS c FROM RoomMessage WHERE roomId = ?', (room_id,))
+    room['messageCount'] = cursor.fetchone()['c']
+    cursor.execute('SELECT userId FROM ChatRoomMember WHERE roomId = ?', (room_id,))
+    room['memberIds'] = [r['userId'] for r in cursor.fetchall()]
+    conn.close()
+    return jsonify({'success': True, 'room': room})
+
+
+@app.route('/api/rooms/<int:room_id>/messages', methods=['GET'])
+def get_room_messages(room_id):
+    current_user_id = require_auth()
+    if not current_user_id:
+        return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
+
+    limit = min(int(request.args.get('limit', 50)), 100)
+    offset = int(request.args.get('offset', 0))
+    after_id = request.args.get('afterId', type=int)
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT 1 FROM ChatRoom WHERE id = ?', (room_id,))
+    if not cursor.fetchone():
+        conn.close()
+        return jsonify({'success': False, 'message': 'Комната не найдена'}), 404
+    if not _ensure_room_member(cursor, room_id, current_user_id):
+        conn.close()
+        return jsonify({'success': False, 'message': 'Нет доступа'}), 403
+
+    if after_id:
+        cursor.execute('''
+            SELECT m.id, m.roomId, m.fromUserId, m.content, m.isAnonymous, m.replyToId, m.createdAt
+            FROM RoomMessage m
+            WHERE m.roomId = ? AND m.id > ?
+            ORDER BY m.createdAt ASC
+            LIMIT ?
+        ''', (room_id, after_id, limit))
+        rows = [dict(r) for r in cursor.fetchall()]
+    else:
+        cursor.execute('''
+            SELECT m.id, m.roomId, m.fromUserId, m.content, m.isAnonymous, m.replyToId, m.createdAt
+            FROM RoomMessage m
+            WHERE m.roomId = ?
+            ORDER BY m.createdAt DESC
+            LIMIT ? OFFSET ?
+        ''', (room_id, limit, offset))
+        rows = list(reversed([dict(r) for r in cursor.fetchall()]))
+
+    messages = []
+    for msg in rows:
+        cursor.execute('SELECT emoji, userId FROM RoomMessageReaction WHERE messageId = ?', (msg['id'],))
+        msg['reactions'] = [{'emoji': r['emoji'], 'userId': r['userId']} for r in cursor.fetchall()]
+        if msg.get('replyToId'):
+            cursor.execute('SELECT id, content, fromUserId, isAnonymous FROM RoomMessage WHERE id = ?', (msg['replyToId'],))
+            reply_row = cursor.fetchone()
+            if reply_row:
+                msg['replyTo'] = dict(reply_row)
+        if not msg.get('isAnonymous'):
+            cursor.execute('SELECT username, avatar FROM Users WHERE id = ?', (msg['fromUserId'],))
+            u = cursor.fetchone()
+            if u:
+                msg['fromUsername'] = u['username']
+                msg['fromAvatar'] = u['avatar']
+        else:
+            msg['anonymousColor'] = get_anonymous_color(msg['fromUserId'])
+        messages.append(msg)
+
+    conn.close()
+    return jsonify({'success': True, 'messages': messages})
+
+
+@app.route('/api/rooms/<int:room_id>/messages', methods=['POST'])
+def send_room_message(room_id):
+    current_user_id = require_auth()
+    if not current_user_id:
+        return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
+    update_user_last_active(current_user_id)
+
+    data = request.get_json() or {}
+    content = (data.get('content') or '').strip()
+    is_anonymous = 1 if data.get('isAnonymous') else 0
+    reply_to_id = data.get('replyToId', type=int)
+
+    if not content:
+        return jsonify({'success': False, 'message': 'Сообщение не может быть пустым'}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT id, expiresAt FROM ChatRoom WHERE id = ?', (room_id,))
+    row = cursor.fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'success': False, 'message': 'Комната не найдена'}), 404
+    if _room_expired(row['expiresAt']):
+        conn.close()
+        return jsonify({'success': False, 'message': 'Чат истёк'}), 410
+    if not _ensure_room_member(cursor, room_id, current_user_id):
+        conn.close()
+        return jsonify({'success': False, 'message': 'Нет доступа'}), 403
+
+    if _is_user_muted(cursor, room_id, current_user_id):
+        conn.close()
+        cursor.execute('SELECT mutedUntil FROM ChatRoomMute WHERE roomId = ? AND userId = ?', (room_id, current_user_id))
+        r = cursor.fetchone()
+        return jsonify({'success': False, 'message': 'Вы замучены', 'mutedUntil': r['mutedUntil'] if r else None}), 403
+
+    created_at = datetime.now().isoformat()
+    cursor.execute('''
+        INSERT INTO RoomMessage (roomId, fromUserId, content, isAnonymous, replyToId, createdAt)
+        VALUES (?, ?, ?, ?, ?, ?)
+    ''', (room_id, current_user_id, content, is_anonymous, reply_to_id or None, created_at))
+    msg_id = cursor.lastrowid
+    conn.commit()
+
+    msg = dict(cursor.execute('SELECT id, roomId, fromUserId, content, isAnonymous, replyToId, createdAt FROM RoomMessage WHERE id = ?', (msg_id,)).fetchone())
+    cursor.execute('SELECT emoji, userId FROM RoomMessageReaction WHERE messageId = ?', (msg_id,))
+    msg['reactions'] = [{'emoji': r['emoji'], 'userId': r['userId']} for r in cursor.fetchall()]
+    if msg.get('replyToId'):
+        cursor.execute('SELECT id, content, fromUserId, isAnonymous FROM RoomMessage WHERE id = ?', (msg['replyToId'],))
+        reply_row = cursor.fetchone()
+        if reply_row:
+            msg['replyTo'] = dict(reply_row)
+    if not msg.get('isAnonymous'):
+        cursor.execute('SELECT username, avatar FROM Users WHERE id = ?', (current_user_id,))
+        u = cursor.fetchone()
+        if u:
+            msg['fromUsername'] = u['username']
+            msg['fromAvatar'] = u['avatar']
+    else:
+        msg['anonymousColor'] = get_anonymous_color(current_user_id)
+    conn.close()
+    return jsonify({'success': True, 'message': msg})
+
+
+@app.route('/api/rooms/<int:room_id>/messages/<int:message_id>/reaction', methods=['POST'])
+def toggle_room_message_reaction(room_id, message_id):
+    current_user_id = require_auth()
+    if not current_user_id:
+        return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
+
+    data = request.get_json() or {}
+    emoji = (data.get('emoji') or 'heart').strip()[:20]
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT id FROM RoomMessage WHERE id = ? AND roomId = ?', (message_id, room_id))
+    if not cursor.fetchone():
+        conn.close()
+        return jsonify({'success': False, 'message': 'Сообщение не найдено'}), 404
+    if not _ensure_room_member(cursor, room_id, current_user_id):
+        conn.close()
+        return jsonify({'success': False, 'message': 'Нет доступа'}), 403
+
+    cursor.execute('SELECT 1 FROM RoomMessageReaction WHERE messageId = ? AND userId = ?', (message_id, current_user_id))
+    exists = cursor.fetchone()
+    created_at = datetime.now().isoformat()
+    if exists:
+        cursor.execute('DELETE FROM RoomMessageReaction WHERE messageId = ? AND userId = ?', (message_id, current_user_id))
+    else:
+        cursor.execute('INSERT INTO RoomMessageReaction (messageId, userId, emoji, createdAt) VALUES (?, ?, ?, ?)',
+                      (message_id, current_user_id, emoji, created_at))
+    conn.commit()
+    cursor.execute('SELECT emoji, userId FROM RoomMessageReaction WHERE messageId = ?', (message_id,))
+    reactions = [{'emoji': r['emoji'], 'userId': r['userId']} for r in cursor.fetchall()]
+    conn.close()
+    return jsonify({'success': True, 'reactions': reactions})
+
+
+@app.route('/api/rooms/<int:room_id>/typing', methods=['GET'])
+def get_room_typing(room_id):
+    current_user_id = require_auth()
+    if not current_user_id:
+        return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
+    # Проверка доступа к комнате через БД
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT 1 FROM ChatRoom WHERE id = ?', (room_id,))
+    if not cursor.fetchone():
+        conn.close()
+        return jsonify({'success': False, 'message': 'Комната не найдена'}), 404
+    if not _ensure_room_member(cursor, room_id, current_user_id):
+        conn.close()
+        return jsonify({'success': False, 'message': 'Нет доступа'}), 403
+    conn.close()
+
+    now_ts = datetime.now().timestamp()
+    out = []
+    if room_id in _room_typing:
+        for uid, ts in list(_room_typing[room_id].items()):
+            if uid != current_user_id and (now_ts - ts) < 5:
+                out.append(uid)
+            elif (now_ts - ts) >= 5:
+                del _room_typing[room_id][uid]
+    return jsonify({'success': True, 'typingUserIds': out})
+
+
+@app.route('/api/rooms/<int:room_id>/typing', methods=['POST'])
+def set_room_typing(room_id):
+    current_user_id = require_auth()
+    if not current_user_id:
+        return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
+    data = request.get_json() or {}
+    active = data.get('active', True)
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT 1 FROM ChatRoom WHERE id = ?', (room_id,))
+    if not cursor.fetchone():
+        conn.close()
+        return jsonify({'success': False, 'message': 'Комната не найдена'}), 404
+    if not _ensure_room_member(cursor, room_id, current_user_id):
+        conn.close()
+        return jsonify({'success': False, 'message': 'Нет доступа'}), 403
+    conn.close()
+    if room_id not in _room_typing:
+        _room_typing[room_id] = {}
+    if active:
+        _room_typing[room_id][current_user_id] = datetime.now().timestamp()
+    else:
+        _room_typing[room_id].pop(current_user_id, None)
+    return jsonify({'success': True})
+
+
+@app.route('/api/rooms/<int:room_id>/join', methods=['POST'])
+def join_room(room_id):
+    current_user_id = require_auth()
+    if not current_user_id:
+        return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT id, isPublic, expiresAt FROM ChatRoom WHERE id = ?', (room_id,))
+    row = cursor.fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'success': False, 'message': 'Комната не найдена'}), 404
+    if not row['isPublic']:
+        conn.close()
+        return jsonify({'success': False, 'message': 'Комната приватная'}), 403
+    if _room_expired(row.get('expiresAt')):
+        conn.close()
+        return jsonify({'success': False, 'message': 'Чат истёк'}), 410
+    created_at = datetime.now().isoformat()
+    cursor.execute('INSERT OR IGNORE INTO ChatRoomMember (roomId, userId, joinedAt) VALUES (?, ?, ?)',
+                   (room_id, current_user_id, created_at))
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True})
+
+
+@app.route('/api/rooms/<int:room_id>/mute-status', methods=['GET'])
+def get_room_mute_status(room_id):
+    current_user_id = require_auth()
+    if not current_user_id:
+        return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    if not _ensure_room_member(cursor, room_id, current_user_id):
+        conn.close()
+        return jsonify({'success': False, 'message': 'Нет доступа'}), 403
+    muted = _is_user_muted(cursor, room_id, current_user_id)
+    muted_until = None
+    if muted:
+        cursor.execute('SELECT mutedUntil FROM ChatRoomMute WHERE roomId = ? AND userId = ?', (room_id, current_user_id))
+        r = cursor.fetchone()
+        if r:
+            muted_until = r['mutedUntil']
+    conn.close()
+    return jsonify({'success': True, 'muted': muted, 'mutedUntil': muted_until})
+
+
+@app.route('/api/rooms/<int:room_id>/mute', methods=['POST'])
+def mute_room_user(room_id):
+    current_user_id = require_auth()
+    if not current_user_id:
+        return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
+    data = request.get_json() or {}
+    target_user_id = data.get('userId', type=int)
+    minutes = data.get('minutes', 60)
+    if not target_user_id:
+        return jsonify({'success': False, 'message': 'Укажите userId'}), 400
+    try:
+        minutes = min(max(int(minutes), 1), 10080)  # 1 min to 7 days
+    except (TypeError, ValueError):
+        minutes = 60
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    if not _ensure_room_member(cursor, room_id, current_user_id):
+        conn.close()
+        return jsonify({'success': False, 'message': 'Нет доступа'}), 403
+    if not _is_room_admin(cursor, room_id, current_user_id):
+        conn.close()
+        return jsonify({'success': False, 'message': 'Только админ или создатель может замутить'}), 403
+    if not _ensure_room_member(cursor, room_id, target_user_id):
+        conn.close()
+        return jsonify({'success': False, 'message': 'Пользователь не в комнате'}), 400
+    from datetime import timedelta
+    muted_until = (datetime.now() + timedelta(minutes=minutes)).isoformat()
+    created_at = datetime.now().isoformat()
+    cursor.execute('INSERT OR REPLACE INTO ChatRoomMute (roomId, userId, mutedUntil, mutedById, createdAt) VALUES (?, ?, ?, ?, ?)',
+                   (room_id, target_user_id, muted_until, current_user_id, created_at))
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True, 'mutedUntil': muted_until})
+
+
+@app.route('/api/rooms/<int:room_id>/members', methods=['GET'])
+def get_room_members(room_id):
+    current_user_id = require_auth()
+    if not current_user_id:
+        return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    if not _ensure_room_member(cursor, room_id, current_user_id):
+        conn.close()
+        return jsonify({'success': False, 'message': 'Нет доступа'}), 403
+    cursor.execute('''
+        SELECT m.userId, u.username, u.avatar, m.joinedAt,
+               (r.createdById = m.userId OR a.userId IS NOT NULL) AS isAdmin
+        FROM ChatRoomMember m
+        JOIN Users u ON u.id = m.userId
+        LEFT JOIN ChatRoom r ON r.id = m.roomId
+        LEFT JOIN ChatRoomAdmin a ON a.roomId = m.roomId AND a.userId = m.userId
+        WHERE m.roomId = ?
+    ''', (room_id,))
+    members = [dict(r) for r in cursor.fetchall()]
+    for m in members:
+        m['isAdmin'] = bool(m.get('isAdmin'))
+    conn.close()
+    return jsonify({'success': True, 'members': members})
+
+
+@app.route('/api/rooms/<int:room_id>/members', methods=['POST'])
+def add_room_members(room_id):
+    current_user_id = require_auth()
+    if not current_user_id:
+        return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
+    data = request.get_json() or {}
+    user_ids = data.get('userIds') or []
+    if not user_ids:
+        return jsonify({'success': False, 'message': 'Укажите userIds'}), 400
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    if not _ensure_room_member(cursor, room_id, current_user_id):
+        conn.close()
+        return jsonify({'success': False, 'message': 'Нет доступа'}), 403
+    if not _is_room_admin(cursor, room_id, current_user_id):
+        conn.close()
+        return jsonify({'success': False, 'message': 'Только админ или создатель может добавлять участников'}), 403
+    cursor.execute('SELECT 1 FROM ChatRoom WHERE id = ?', (room_id,))
+    if not cursor.fetchone():
+        conn.close()
+        return jsonify({'success': False, 'message': 'Комната не найдена'}), 404
+    created_at = datetime.now().isoformat()
+    added = 0
+    for uid in user_ids:
+        try:
+            uid = int(uid)
+            if uid != current_user_id:
+                cursor.execute('INSERT OR IGNORE INTO ChatRoomMember (roomId, userId, joinedAt) VALUES (?, ?, ?)',
+                               (room_id, uid, created_at))
+                if cursor.rowcount > 0:
+                    added += 1
+        except (TypeError, ValueError):
+            pass
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True, 'added': added})
+
+
+@app.route('/api/rooms/<int:room_id>/members/<int:target_user_id>', methods=['DELETE'])
+def remove_room_member(room_id, target_user_id):
+    current_user_id = require_auth()
+    if not current_user_id:
+        return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    if not _ensure_room_member(cursor, room_id, current_user_id):
+        conn.close()
+        return jsonify({'success': False, 'message': 'Нет доступа'}), 403
+    can_remove = _is_room_admin(cursor, room_id, current_user_id) or target_user_id == current_user_id
+    if not can_remove:
+        conn.close()
+        return jsonify({'success': False, 'message': 'Нет прав на удаление'}), 403
+    cursor.execute('DELETE FROM ChatRoomMember WHERE roomId = ? AND userId = ?', (room_id, target_user_id))
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True})
+
+
 @app.route('/api/stats', methods=['GET'])
 def get_network_stats():
     conn = get_db_connection()
@@ -1244,13 +1921,20 @@ def get_post_recommendations():
     reposts_weight = _w('repostsWeight', 3.0)
     attention_weight = _w('attentionWeight', 0.5)
     freshness_weight = _w('freshnessWeight', 2.0)
+    author_affinity_weight = _w('authorAffinityWeight', 1.0)
+    thread_activity_weight = _w('threadActivityWeight', 1.5)
+    anonymity_interest_weight = _w('anonymityInterestWeight', 0.5)
+    trendiness_weight = _w('trendinessWeight', 1.0)
 
     conn = get_db_connection()
     cursor = conn.cursor()
 
+    cursor.execute('SELECT followingId FROM Followers WHERE followerId = ?', (current_user_id,))
+    following_ids = {row['followingId'] for row in cursor.fetchall()}
+
     # base set of posts, limit 200 for sqlite perf
     cursor.execute('''
-        SELECT p.id, p.userId, p.content, p.mood, p.createdAt, p.attentionSum, p.viewsCount,
+        SELECT p.id, p.userId, p.content, p.mood, p.createdAt, p.attentionSum, p.viewsCount, COALESCE(p.isAnonymous, 0) as isAnonymous,
                COALESCE(l.likes, 0) as likes,
                COALESCE(c.comments, 0) as comments,
                COALESCE(r.reposts, 0) as reposts
@@ -1288,7 +1972,18 @@ def get_post_recommendations():
             attention_weight * float(average_attention_seconds)
         )
         freshness_score = freshness_weight * (1.0 / (1.0 + hours_since_post))
-        score = base_score + freshness_score
+        author_affinity = 1.0 if (post.get('userId') in following_ids) else 0.0
+        thread_activity = float(post.get('comments') or 0)
+        anonymity_boost = 1.0 if post.get('isAnonymous') else 0.0
+        trendiness = (float(post.get('likes') or 0) + float(post.get('comments') or 0)) / (1.0 + hours_since_post)
+
+        score = (
+            base_score + freshness_score
+            + author_affinity_weight * author_affinity
+            + thread_activity_weight * thread_activity
+            + anonymity_interest_weight * anonymity_boost
+            + trendiness_weight * trendiness
+        )
 
         post['averageAttentionSeconds'] = average_attention_seconds
         post['hoursSincePost'] = hours_since_post
@@ -1324,6 +2019,8 @@ def get_post_recommendations():
         post['reposted'] = cursor.fetchone() is not None
 
         post['score'] = next((x['score'] for x in scored if x['post']['id'] == post_id), None)
+        post['isAnonymous'] = bool(post.get('isAnonymous', 0))
+        post['anonymousColor'] = get_anonymous_color(post_id) if post['isAnonymous'] else None
         post.pop('likes', None)
         post.pop('comments', None)
         post.pop('reposts', None)

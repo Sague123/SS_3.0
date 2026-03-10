@@ -30,7 +30,18 @@
         <button type="button" id="themeToggle" class="theme-toggle" aria-label="Theme">🌓 <span id="themeToggleLabel">Dark</span></button>
         <button id="logoutBtn" class="btn ghost" data-i18n="nav_logout">Выйти</button>
       </nav>
+      <button type="button" class="nav-hamburger" id="navHamburger" aria-label="Menu" aria-expanded="false"><span></span><span></span><span></span></button>
     </header>
+    <div class="nav-overlay" id="navOverlay" aria-hidden="true">
+      <nav class="nav nav-overlay-nav">
+        <a href="feed.html" class="nav-link" data-i18n="nav_feed">Лента</a>
+        <a href="messages.html" class="nav-link" data-i18n="nav_messages">Сообщения</a>
+        <a href="profile.html" class="nav-link active" data-i18n="nav_profile">Профиль</a>
+        <select id="languageSelectMobile" class="language-select"><option value="cs">Čeština</option><option value="ru">Русский</option><option value="en">English</option></select>
+        <button type="button" id="themeToggleMobile" class="theme-toggle">🌓 <span id="themeToggleLabelMobile">Dark</span></button>
+        <button id="logoutBtnMobile" class="btn ghost" data-i18n="nav_logout">Выйти</button>
+      </nav>
+    </div>
 
     <main class="layout-one-column">
       <section class="card profile-card" id="profileCard">

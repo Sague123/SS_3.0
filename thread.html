@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title data-i18n="thread_title">Тред</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="icon" type="image/png" href="Icons/Logo.png">
+</head>
+<body>
+  <div class="app-container">
+    <header class="app-header app-header-nav">
+      <div>
+        <h1 class="brand-title">
+          <img src="Icons/Logo.png" alt="Logo" class="logo-icon">
+          <span class="brand-logo-text">Logo</span>
+          <span data-i18n="feed_title">Tell ur story</span>
+        </h1>
+        <p class="subtitle" data-i18n="thread_subtitle">Обсуждение поста</p>
+      </div>
+      <nav class="nav">
+        <a href="feed.html" class="nav-link nav-link-feed" data-i18n="nav_feed">Лента</a>
+        <a href="messages.html" class="nav-link" data-i18n="nav_messages">Сообщения</a>
+        <a href="profile.html" class="nav-link" data-i18n="nav_profile">Профиль</a>
+        <select id="languageSelect" class="language-select">
+          <option value="cs" data-i18n="lang_cs">Čeština</option>
+          <option value="ru" data-i18n="lang_ru">Русский</option>
+          <option value="en" data-i18n="lang_en">English</option>
+        </select>
+        <button type="button" id="themeToggle" class="theme-toggle" aria-label="Theme">🌓 <span id="themeToggleLabel">Dark</span></button>
+        <button id="logoutBtn" class="btn ghost" data-i18n="nav_logout">Выйти</button>
+      </nav>
+      <button type="button" class="nav-hamburger" id="navHamburger" aria-label="Menu" aria-expanded="false"><span></span><span></span><span></span></button>
+    </header>
+    <div class="nav-overlay" id="navOverlay" aria-hidden="true">
+      <nav class="nav nav-overlay-nav">
+        <a href="feed.html" class="nav-link nav-link-feed" data-i18n="nav_feed">Лента</a>
+        <a href="messages.html" class="nav-link" data-i18n="nav_messages">Сообщения</a>
+        <a href="profile.html" class="nav-link" data-i18n="nav_profile">Профиль</a>
+        <select id="languageSelectMobile" class="language-select"><option value="cs">Čeština</option><option value="ru">Русский</option><option value="en">English</option></select>
+        <button type="button" id="themeToggleMobile" class="theme-toggle">🌓 <span id="themeToggleLabelMobile">Dark</span></button>
+        <button id="logoutBtnMobile" class="btn ghost" data-i18n="nav_logout">Выйти</button>
+      </nav>
+    </div>
+
+    <main class="layout-one-column">
+      <div class="thread-back-wrap">
+        <a href="feed.html" class="thread-back-btn" data-i18n="nav_feed">← Лента</a>
+      </div>
+      <div id="threadError" class="error-text" style="display: none;"></div>
+      <div id="threadPostWrap" class="card post-thread-card" style="display: none;">
+        <!-- Пост и кнопки (реакции, комментарии, поделиться) рендерятся через JS -->
+      </div>
+      <div id="threadCommentsCard" class="card" style="display: none;">
+        <h3 class="thread-comments-head">
+          <span data-i18n="thread_comments">Комментарии</span>
+          <span id="threadCommentsCount" class="muted">0</span>
+          <select id="threadCommentsSort" class="thread-sort-select" title="Sort">
+            <option value="latest" data-i18n="sort_latest">Сначала новые</option>
+            <option value="hot" data-i18n="sort_hot">🔥 Hot</option>
+          </select>
+          <button type="button" id="threadCommentsToggle" class="btn ghost small" data-i18n="thread_collapse">Свернуть</button>
+        </h3>
+        <div id="threadCommentsBody" class="card-collapse-body">
+          <div id="threadCommentsList" class="comments-list"></div>
+          <div id="threadLoadMoreWrap" class="thread-load-more-wrap" style="display: none;">
+            <button type="button" id="threadLoadMore" class="btn ghost small" data-i18n="load_more">Загрузить ещё</button>
+          </div>
+        </div>
+      </div>
+      <div id="threadShareWrap" class="card" style="display: none;">
+        <h4 data-i18n="share_post">Поделиться</h4>
+        <div class="thread-share-actions">
+          <button type="button" id="threadShareCopy" class="btn ghost small" data-i18n="share_copy_link">Копировать ссылку</button>
+          <span id="threadShareCopied" class="muted" style="display: none;">✓ Скопировано</span>
+        </div>
+        <p class="thread-anonymous-tip muted" data-i18n="thread_anonymous_tip">В анонимном посте автор скрыт; у участников разный цвет аватара.</p>
+      </div>
+    </main>
+
+    <footer class="app-footer">
+      <p data-i18n="feed_footer">Все данные хранятся на сервере в SQL базе с шифрованием.</p>
+    </footer>
+  </div>
+
+  <!-- Плавающая панель комментариев -->
+  <div id="floatingCommentPanel" class="floating-comment-panel" aria-hidden="true">
+    <div class="floating-comment-panel-inner">
+      <div class="floating-comment-reply-ref" id="floatingCommentReplyRef" style="display: none;"></div>
+      <div class="floating-comment-row">
+        <textarea id="floatingCommentInput" class="comment-input floating-comment-input" rows="2" placeholder="" data-i18n="comment_placeholder" maxlength="2000"></textarea>
+        <button type="button" id="floatingCommentEmoji" class="btn ghost small floating-comment-emoji-btn" title="Emoji" aria-label="Emoji">😀</button>
+      </div>
+      <div id="floatingEmojiPicker" class="floating-emoji-picker" style="display: none;"></div>
+      <div class="floating-comment-actions">
+        <label class="thread-anonymous-label floating-comment-anonymous">
+          <input type="checkbox" id="floatingCommentAnonymous" value="1">
+          <span data-i18n="comment_anonymous">Анонимно</span>
+        </label>
+        <button type="button" id="floatingCommentSubmit" class="btn primary small" data-i18n="submit_comment">Отправить</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="translations.js"></script>
+  <script src="api.js"></script>
+  <script src="script_api.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      if (!window.App) return;
+      App.requireAuth();
+      if (window.App.renderThreadPage) App.renderThreadPage();
+      if (window.I18n) window.I18n.apply(document);
+    });
+  </script>
+</body>
+</html>

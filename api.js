@@ -129,11 +129,15 @@ const PostAPI = {
     const url = userId ? `/posts?userId=${userId}` : '/posts';
     return apiRequest(url);
   },
-  async createPost(content, file = null, mood = 'happy') {
+  async getPost(postId) {
+    return apiRequest(`/posts/${postId}`);
+  },
+  async createPost(content, file = null, mood = 'happy', anonymous = false) {
     const formData = new FormData();
     formData.append('content', content);
     formData.append('mood', mood);
     if (file) formData.append('file', file);
+    if (anonymous) formData.append('anonymous', '1');
     return apiRequest('/posts', { method: 'POST', body: formData });
   },
   async deletePost(postId) {
@@ -145,13 +149,17 @@ const PostAPI = {
       body: JSON.stringify({ reactionType })
     });
   },
-  async getComments(postId) {
-    return apiRequest(`/posts/${postId}/comments`);
+  async getComments(postId, sort = 'latest', limit = 50, offset = 0) {
+    const params = new URLSearchParams();
+    params.set('sort', sort);
+    if (limit != null) params.set('limit', String(limit));
+    if (offset != null) params.set('offset', String(offset));
+    return apiRequest(`/posts/${postId}/comments?${params.toString()}`);
   },
-  async createComment(postId, content) {
+  async createComment(postId, content, anonymous = false) {
     return apiRequest(`/posts/${postId}/comments`, {
       method: 'POST',
-      body: JSON.stringify({ content })
+      body: JSON.stringify({ content, anonymous })
     });
   },
   async toggleCommentLike(commentId, reactionType = 'heart') {
@@ -212,6 +220,73 @@ const MessagesAPI = {
   }
 };
 
+const RoomsAPI = {
+  async getRooms() {
+    return apiRequest('/rooms');
+  },
+  async createRoom(options = {}) {
+    return apiRequest('/rooms', {
+      method: 'POST',
+      body: JSON.stringify(options)
+    });
+  },
+  async getRoom(roomId) {
+    return apiRequest(`/rooms/${roomId}`);
+  },
+  async getRoomMessages(roomId, { limit = 50, offset = 0, afterId = null } = {}) {
+    const params = new URLSearchParams();
+    params.set('limit', String(limit));
+    params.set('offset', String(offset));
+    if (afterId != null) params.set('afterId', String(afterId));
+    return apiRequest(`/rooms/${roomId}/messages?${params.toString()}`);
+  },
+  async sendRoomMessage(roomId, content, { anonymous = false, replyToId = null } = {}) {
+    return apiRequest(`/rooms/${roomId}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({ content, anonymous, replyToId })
+    });
+  },
+  async toggleMessageReaction(roomId, messageId, emoji = 'heart') {
+    return apiRequest(`/rooms/${roomId}/messages/${messageId}/reaction`, {
+      method: 'POST',
+      body: JSON.stringify({ emoji })
+    });
+  },
+  async getTyping(roomId) {
+    return apiRequest(`/rooms/${roomId}/typing`);
+  },
+  async setTyping(roomId, active = true) {
+    return apiRequest(`/rooms/${roomId}/typing`, {
+      method: 'POST',
+      body: JSON.stringify({ active })
+    });
+  },
+  async joinRoom(roomId) {
+    return apiRequest(`/rooms/${roomId}/join`, { method: 'POST' });
+  },
+  async getMuteStatus(roomId) {
+    return apiRequest(`/rooms/${roomId}/mute-status`);
+  },
+  async muteUser(roomId, userId, minutes = 60) {
+    return apiRequest(`/rooms/${roomId}/mute`, {
+      method: 'POST',
+      body: JSON.stringify({ userId, minutes })
+    });
+  },
+  async getRoomMembers(roomId) {
+    return apiRequest(`/rooms/${roomId}/members`);
+  },
+  async addRoomMembers(roomId, userIds) {
+    return apiRequest(`/rooms/${roomId}/members`, {
+      method: 'POST',
+      body: JSON.stringify({ userIds })
+    });
+  },
+  async removeRoomMember(roomId, userId) {
+    return apiRequest(`/rooms/${roomId}/members/${userId}`, { method: 'DELETE' });
+  }
+};
+
 const StatsAPI = {
   async getNetworkStats() {
     return apiRequest('/stats');
@@ -223,5 +298,6 @@ window.API = {
   Post: PostAPI,
   Recommendations: RecommendationsAPI,
   Messages: MessagesAPI,
+  Rooms: RoomsAPI,
   Stats: StatsAPI
 };

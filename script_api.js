@@ -42,10 +42,63 @@ const DEFAULT_RECOMMENDATION_WEIGHTS = {
   commentsWeight: 2.0,
   repostsWeight: 3.0,
   attentionWeight: 0.5,
-  freshnessWeight: 2.0
+  freshnessWeight: 2.0,
+  authorAffinityWeight: 1.0,
+  threadActivityWeight: 1.5,
+  anonymityInterestWeight: 0.5,
+  trendinessWeight: 1.0
+};
+
+const REC_WEIGHT_ICONS = {
+  followersWeight: '👥',
+  commonFollowingWeight: '🤝',
+  postsWeight: '📝',
+  likesWeight: '❤️',
+  commentsWeight: '💬',
+  repostsWeight: '🔁',
+  attentionWeight: '👀',
+  freshnessWeight: '⏰',
+  authorAffinityWeight: '⭐',
+  threadActivityWeight: '🧵',
+  anonymityInterestWeight: '🎭',
+  trendinessWeight: '🔥'
+};
+
+const REC_PRESETS = {
+  latest: {
+    nameKey: 'rec_preset_latest',
+    name: 'Актуальное',
+    weights: { freshnessWeight: 4, trendinessWeight: 1.5, likesWeight: 0.5, commentsWeight: 1, repostsWeight: 0.5, attentionWeight: 0.3, authorAffinityWeight: 0.5, threadActivityWeight: 0.5, anonymityInterestWeight: 0.3 }
+  },
+  popular: {
+    nameKey: 'rec_preset_popular',
+    name: 'Популярное',
+    weights: { trendinessWeight: 4, likesWeight: 3, commentsWeight: 3, repostsWeight: 2, freshnessWeight: 1.5, attentionWeight: 0.5, authorAffinityWeight: 0.3, threadActivityWeight: 1, anonymityInterestWeight: 0.2 }
+  },
+  forYou: {
+    nameKey: 'rec_preset_for_you',
+    name: 'Тебе понравится',
+    weights: { authorAffinityWeight: 4, anonymityInterestWeight: 2, attentionWeight: 2, likesWeight: 1.5, commentsWeight: 1.5, freshnessWeight: 1, trendinessWeight: 1, threadActivityWeight: 1 }
+  },
+  anonymous: {
+    nameKey: 'rec_preset_anonymous',
+    name: 'Анонимные сплетни',
+    weights: { anonymityInterestWeight: 4, threadActivityWeight: 2, commentsWeight: 2, freshnessWeight: 1, likesWeight: 0.8, trendinessWeight: 0.8, authorAffinityWeight: 0.2, attentionWeight: 0.5 }
+  },
+  activeThreads: {
+    nameKey: 'rec_preset_active_threads',
+    name: 'Активные треды',
+    weights: { threadActivityWeight: 4, commentsWeight: 3, attentionWeight: 2.5, likesWeight: 1, freshnessWeight: 1.5, trendinessWeight: 1, anonymityInterestWeight: 0.5, authorAffinityWeight: 0.5 }
+  },
+  combined: {
+    nameKey: 'rec_preset_combined',
+    name: 'Комбинированный',
+    weights: { freshnessWeight: 1.5, trendinessWeight: 1.2, likesWeight: 1.2, commentsWeight: 1.5, repostsWeight: 1, attentionWeight: 0.8, authorAffinityWeight: 1.2, threadActivityWeight: 1.2, anonymityInterestWeight: 0.8 }
+  }
 };
 
 let recommendationWeights = loadRecommendationWeights();
+let currentFeedPresetId = 'latest';
 
 const MOOD_EMOJI = { happy: '🙂', sad: '😢', inspired: '🔥', thinking: '🤔', dark: '💀' };
 function getMoodEmoji(mood) {
@@ -86,49 +139,95 @@ function setupRecommendationSettingsPanel(onWeightsChange) {
   const panel = document.getElementById('recSettingsPanel');
   if (!panel) return;
 
-  function applyWeightsToSliders() {
-    const weights = getRecommendationWeights();
+  function applyWeightsToSliders(weights) {
+    const w = weights || getRecommendationWeights();
     Object.keys(DEFAULT_RECOMMENDATION_WEIGHTS).forEach(key => {
       const input = document.getElementById(`w_${key}`);
       const val = document.getElementById(`w_${key}_val`);
       if (input && val) {
-        const v = weights[key] ?? DEFAULT_RECOMMENDATION_WEIGHTS[key];
+        const v = w[key] ?? DEFAULT_RECOMMENDATION_WEIGHTS[key];
         input.value = String(v);
-        val.textContent = String(v);
+        val.textContent = String(Number(v).toFixed(1));
       }
     });
   }
+
+  function buildPanel() {
+    panel.innerHTML = '';
+    Object.keys(DEFAULT_RECOMMENDATION_WEIGHTS).forEach(key => {
+      const def = DEFAULT_RECOMMENDATION_WEIGHTS[key];
+      const icon = REC_WEIGHT_ICONS[key] || '•';
+      const div = document.createElement('div');
+      div.className = 'form-group rec-slider-row';
+      div.innerHTML = `
+        <label class="rec-slider-label" for="w_${key}">
+          <span class="rec-slider-icon" title="${key}">${icon}</span>
+          <span class="rec-slider-name">${key}</span>
+          <span id="w_${key}_val" class="rec-slider-val">${def}</span>
+        </label>
+        <input id="w_${key}" type="range" min="0" max="10" step="0.1" value="${def}" class="rec-slider-input">
+      `;
+      panel.appendChild(div);
+    });
+  }
+
+  function applyPreset(presetId) {
+    currentFeedPresetId = presetId || 'latest';
+    const preset = REC_PRESETS[presetId];
+    if (!preset) return;
+    const weights = { ...DEFAULT_RECOMMENDATION_WEIGHTS, ...preset.weights };
+    recommendationWeights = { ...weights };
+    saveRecommendationWeights();
+    applyWeightsToSliders(recommendationWeights);
+    if (onWeightsChange) onWeightsChange(getRecommendationWeights());
+  }
+
+  const presetsEl = document.getElementById('recPresets');
+  if (presetsEl) {
+    presetsEl.innerHTML = '';
+    Object.keys(REC_PRESETS).forEach(id => {
+      const preset = REC_PRESETS[id];
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn ghost small rec-preset-btn';
+      btn.textContent = I18n.t(preset.nameKey) || preset.name;
+      btn.dataset.preset = id;
+      btn.addEventListener('click', () => applyPreset(id));
+      presetsEl.appendChild(btn);
+    });
+  }
+
+  buildPanel();
+  applyWeightsToSliders(getRecommendationWeights());
 
   const resetBtn = document.getElementById('recSettingsReset');
   if (resetBtn) {
     resetBtn.addEventListener('click', () => {
       recommendationWeights = { ...DEFAULT_RECOMMENDATION_WEIGHTS };
       saveRecommendationWeights();
-      applyWeightsToSliders();
+      applyWeightsToSliders(recommendationWeights);
       if (onWeightsChange) onWeightsChange(getRecommendationWeights());
     });
   }
 
-  const bindSlider = (key) => {
+  let debounceTimer;
+  const scheduleRefresh = () => {
+    window.clearTimeout(debounceTimer);
+    debounceTimer = window.setTimeout(() => {
+      onWeightsChange && onWeightsChange(getRecommendationWeights());
+    }, 180);
+  };
+
+  Object.keys(DEFAULT_RECOMMENDATION_WEIGHTS).forEach(key => {
     const input = document.getElementById(`w_${key}`);
     const val = document.getElementById(`w_${key}_val`);
     if (!input || !val) return;
-    input.value = String(getRecommendationWeights()[key] ?? DEFAULT_RECOMMENDATION_WEIGHTS[key]);
-    val.textContent = String(input.value);
-
-    let debounceTimer;
     input.addEventListener('input', () => {
-      val.textContent = String(input.value);
+      val.textContent = Number(input.value).toFixed(1);
       setRecommendationWeight(key, input.value);
-
-      window.clearTimeout(debounceTimer);
-      debounceTimer = window.setTimeout(() => {
-        onWeightsChange && onWeightsChange(getRecommendationWeights());
-      }, 200);
+      scheduleRefresh();
     });
-  };
-
-  Object.keys(DEFAULT_RECOMMENDATION_WEIGHTS).forEach(bindSlider);
+  });
 }
 
 function getRandomFeedSubtitle() {
@@ -201,6 +300,54 @@ async function getUserById(userId) {
     console.error('Ошибка получения пользователя:', error);
   }
   return null;
+}
+
+function runGlobalOnboarding(currentUser) {
+  const OVERLAY_ID = 'onboardingOverlay';
+  const STORAGE_KEY = 'onboarding_v1_done';
+  try {
+    if (localStorage.getItem(STORAGE_KEY)) return;
+  } catch (_) {}
+  const overlay = document.getElementById(OVERLAY_ID);
+  const textEl = document.getElementById('onboardStepText');
+  const nextBtn = document.getElementById('onboardNext');
+  const skipBtn = document.getElementById('onboardSkip');
+  if (!overlay || !textEl || !nextBtn || !skipBtn) return;
+  const steps = [
+    'onboard_step_feed',
+    'onboard_step_create',
+    'onboard_step_messages',
+    'onboard_step_profile'
+  ];
+  let index = 0;
+  function applyStep() {
+    const key = steps[index] || steps[0];
+    if (window.I18n && typeof I18n.t === 'function') {
+      textEl.textContent = I18n.t(key) || textEl.textContent;
+      nextBtn.textContent = index === steps.length - 1
+        ? (I18n.t('onboard_finish') || 'Готово')
+        : (I18n.t('onboard_next') || 'Далее');
+      skipBtn.textContent = I18n.t('onboard_skip') || 'Пропустить';
+    }
+  }
+  overlay.classList.remove('hidden');
+  overlay.setAttribute('aria-hidden', 'false');
+  applyStep();
+  nextBtn.onclick = () => {
+    if (index < steps.length - 1) {
+      index += 1;
+      applyStep();
+    } else {
+      overlay.classList.add('hidden');
+      overlay.setAttribute('aria-hidden', 'true');
+      try { localStorage.setItem(STORAGE_KEY, '1'); } catch (_) {}
+    }
+  };
+  skipBtn.onclick = () => {
+    overlay.classList.add('hidden');
+    overlay.setAttribute('aria-hidden', 'true');
+    try { localStorage.setItem(STORAGE_KEY, '1'); } catch (_) {}
+  };
 }
 
 function formatDate(iso) {
@@ -286,7 +433,8 @@ function isImageFile(file) {
 }
 
 async function renderPost(post, currentUserId) {
-  const author = await getUserById(post.userId);
+  const isAnonymous = !!post.isAnonymous;
+  const author = isAnonymous ? null : await getUserById(post.userId);
   const reactionCounts = post.reactionCounts || { heart: 0, fire: 0, laugh: 0, wow: 0 };
   const commentsCount = post.commentsCount || 0;
   const repostsCount = post.repostsCount || 0;
@@ -341,35 +489,40 @@ async function renderPost(post, currentUserId) {
 
   const moodEmoji = getMoodEmoji(post.mood);
   const storyScore = author && (author.storyScore != null) ? author.storyScore : 0;
-  const authorLink = author ? `user.html?id=${author.id}` : '#';
-  const avatarHtmlInner = author ? userAvatarHTML(author) : '?';
+  const authorLink = isAnonymous ? '#' : (author ? `user.html?id=${author.id}` : '#');
+  const displayName = isAnonymous ? (I18n.t('anonymous') || 'Anonymous') : (author ? author.username : '?');
+  const anonymousColor = post.anonymousColor || '#6366f1';
+  const avatarHtmlInner = isAnonymous
+    ? `<span class="avatar avatar-anonymous" style="background:${anonymousColor}; color:#fff;">?</span>`
+    : (author ? userAvatarHTML(author) : '?');
 
   div.innerHTML = `
-    ${post.isRepost ? `<div class="post-repost-header muted" style="font-size: 0.85rem; margin-bottom: 4px;">↗ Reposted from <a href="user.html?id=${author ? author.id : ''}">@${author ? escapeHtml(author.username) : '?'}</a></div>` : ''}
+    ${post.isRepost && !isAnonymous ? `<div class="post-repost-header muted" style="font-size: 0.85rem; margin-bottom: 4px;">↗ Reposted from <a href="user.html?id=${author ? author.id : ''}">@${author ? escapeHtml(author.username) : '?'}</a></div>` : ''}
     <div class="post-header">
       <div class="post-header-left">
-        <a href="${authorLink}" class="post-avatar-link" aria-label="${author ? escapeHtml(author.username) : ''}">
+        <a href="${isAnonymous ? '#' : authorLink}" class="post-avatar-link" aria-label="${escapeHtml(displayName)}">
           <span class="avatar">${avatarHtmlInner}</span>
         </a>
         <div>
-          <strong><a href="${authorLink}">${author ? escapeHtml(author.username) : 'Неизвестно'}</a></strong>
+          <strong>${isAnonymous ? '' : '<a href="' + authorLink + '">'}${escapeHtml(displayName)}${isAnonymous ? '' : '</a>'}</strong>
           <span class="post-mood" title="mood">${moodEmoji}</span>
           ${storyScore > 0 ? `<span class="post-story-score muted" style="font-size: 0.85rem;"> · Score ${storyScore}</span>` : ''}
           <div class="post-meta">${formatRelativeTime(post.createdAt)}</div>
+          ${typeof post.score === 'number' ? `<span class="post-score-badge" title="${I18n.t('rec_score') || 'Рейтинг'}">🔥</span>` : ''}
         </div>
       </div>
       ${canDelete ? `<button class="link-button danger" data-action="delete">${deleteText}</button>` : ''}
     </div>
-    <div class="post-content">${escapeHtml(post.content || '')}</div>
+    <div class="post-content post-content-clickable" data-action="open-thread" data-post-id="${post.id}">${escapeHtml(post.content || '')}</div>
     ${attachmentHtml}
     <div class="post-actions" style="display: flex; align-items: center; flex-wrap: wrap; gap: 8px;">
       <div class="post-reactions" style="display: flex; align-items: center; gap: 4px;">
         ${reactionRow}
       </div>
       <div class="post-action-block" style="display: inline-flex; flex-direction: column; align-items: center;">
-        <button type="button" class="link-button post-action-btn" data-action="comment" style="padding: 2px;">
+        <a href="thread.html?id=${post.id}" class="link-button post-action-btn" style="padding: 2px;">
           <img src="${iconsBase}/Comment.png" alt="Comment" class="post-action-icon">
-        </button>
+        </a>
         <span class="post-action-count" data-action="comment">${commentsCount}</span>
       </div>
       <div class="post-action-block" style="display: inline-flex; flex-direction: column; align-items: center;">
@@ -377,15 +530,6 @@ async function renderPost(post, currentUserId) {
           <img src="${iconsBase}/Repost.png" alt="Repost" class="post-action-icon">
         </button>
         <span class="post-action-count" data-action="repost">${repostsCount}</span>
-      </div>
-    </div>
-    <div class="post-comments" id="comments-${post.id}" style="margin-top: 12px; display: none;">
-      <div class="comments-list" id="comments-list-${post.id}"></div>
-      <div class="comment-form" style="margin-top: 8px;">
-        <textarea class="comment-input" id="comment-input-${post.id}" rows="2" placeholder="${I18n.t('comment_placeholder') || 'Написать комментарий...'}" style="width: 100%; padding: 6px; border-radius: 6px; border: 1px solid #d1d5db;"></textarea>
-        <button class="btn primary small" data-action="submit-comment" data-post-id="${post.id}" style="margin-top: 6px;">
-          ${I18n.t('submit_comment') || 'Отправить'}
-        </button>
       </div>
     </div>
   `;
@@ -418,35 +562,7 @@ async function renderPost(post, currentUserId) {
     });
   });
 
-  const commentBtn = div.querySelector('[data-action="comment"]');
-  const commentsSection = div.querySelector(`#comments-${post.id}`);
-  commentBtn.addEventListener('click', async () => {
-    if (commentsSection.style.display === 'none') {
-      commentsSection.style.display = 'block';
-      await loadComments(post.id);
-    } else {
-      commentsSection.style.display = 'none';
-    }
-  });
-
-  const submitCommentBtn = div.querySelector('[data-action="submit-comment"]');
-  const commentInput = div.querySelector(`#comment-input-${post.id}`);
-  const commentCountEl = div.querySelector('.post-action-count[data-action="comment"]');
-  submitCommentBtn.addEventListener('click', async () => {
-    const content = commentInput.value.trim();
-    if (!content) return;
-    
-    try {
-      const response = await window.API.Post.createComment(post.id, content);
-      if (response.success) {
-        commentInput.value = '';
-        await loadComments(post.id);
-        if (commentCountEl) commentCountEl.textContent = (parseInt(commentCountEl.textContent, 10) || 0) + 1;
-      }
-    } catch (error) {
-      alert('Ошибка: ' + error.message);
-    }
-  });
+  div.querySelector('.post-content-clickable')?.addEventListener('click', () => { window.location.href = 'thread.html?id=' + post.id; });
 
   const repostBtn = div.querySelector('[data-action="repost"]');
   const repostCountEl = div.querySelector('.post-action-count[data-action="repost"]');
@@ -486,67 +602,80 @@ async function renderPost(post, currentUserId) {
   return div;
 }
 
-async function loadComments(postId) {
+async function loadComments(postId, sort = 'latest', limit = 50, offset = 0, options = {}) {
+  const { append = false, replyCallback = null } = options;
   try {
-    const response = await window.API.Post.getComments(postId);
-    if (response.success) {
-      const commentsList = document.getElementById(`comments-list-${postId}`);
-      if (!commentsList) return;
-      
-      commentsList.innerHTML = '';
-      
-        if (response.comments.length === 0) {
-        commentsList.innerHTML = '<p class="muted" style="font-size: 0.85rem;">Пока нет комментариев</p>';
-        return;
-      }
-      
-      response.comments.forEach(comment => {
-        const counts = comment.reactionCounts || { heart: 0, fire: 0, laugh: 0, wow: 0 };
-        const curReaction = comment.currentUserReaction || null;
-        const isOwn = currentUser && comment.userId === currentUser.id;
-        const reactionRow = [
-          { key: 'heart', emoji: '❤️' },
-          { key: 'fire', emoji: '🔥' },
-          { key: 'laugh', emoji: '😂' },
-          { key: 'wow', emoji: '😮' }
-        ].map(r => `
-          <span style="display: inline-flex; align-items: center; gap: 2px;">
-            <button type="button" class="comment-reaction-btn" data-comment-id="${comment.id}" data-reaction="${r.key}" ${curReaction === r.key ? 'data-active="1"' : ''} title="${r.key}">${r.emoji}</button>
-            <span class="comment-reaction-count" data-reaction="${r.key}">${counts[r.key] || 0}</span>
-          </span>
-        `).join('');
+    const response = await window.API.Post.getComments(postId, sort, limit, offset);
+    if (!response.success) return { totalCount: 0, loaded: 0 };
+    const commentsList = document.getElementById(`comments-list-${postId}`);
+    if (!commentsList) return { totalCount: response.totalCount || 0, loaded: (response.comments || []).length };
+    const totalCount = response.totalCount != null ? response.totalCount : (response.comments || []).length;
+    const comments = response.comments || [];
 
-        const commentDiv = document.createElement('div');
-        commentDiv.className = 'comment-item';
-        commentDiv.dataset.commentId = comment.id;
-        commentDiv.style.cssText = 'padding: 8px; margin-bottom: 8px; border-radius: 6px;';
-        const actionsHtml = isOwn
-          ? `<span class="comment-actions" style="margin-left: auto;">
+    if (!append) commentsList.innerHTML = '';
+    if (comments.length === 0 && !append) {
+      commentsList.innerHTML = '<p class="muted" style="font-size: 0.85rem;">Пока нет комментариев</p>';
+      return { totalCount, loaded: 0 };
+    }
+
+    comments.forEach(comment => {
+      const counts = comment.reactionCounts || { heart: 0, fire: 0, laugh: 0, wow: 0 };
+      const curReaction = comment.currentUserReaction || null;
+      const isOwn = currentUser && comment.userId === currentUser.id;
+      const reactionRow = [
+        { key: 'heart', emoji: '❤️' },
+        { key: 'fire', emoji: '🔥' },
+        { key: 'laugh', emoji: '😂' },
+        { key: 'wow', emoji: '😮' }
+      ].map(r => `
+        <span style="display: inline-flex; align-items: center; gap: 2px;">
+          <button type="button" class="comment-reaction-btn" data-comment-id="${comment.id}" data-reaction="${r.key}" ${curReaction === r.key ? 'data-active="1"' : ''} title="${r.key}">${r.emoji}</button>
+          <span class="comment-reaction-count" data-reaction="${r.key}">${counts[r.key] || 0}</span>
+        </span>
+      `).join('');
+
+      const commentDiv = document.createElement('div');
+      commentDiv.className = 'comment-item';
+      commentDiv.dataset.commentId = comment.id;
+      commentDiv.style.cssText = 'padding: 8px; margin-bottom: 8px; border-radius: 6px;';
+      const authorName = comment.isAnonymous ? (I18n.t('anonymous') || 'Anonymous') : escapeHtml(comment.username);
+      const avatarHtml = comment.isAnonymous && comment.anonymousColor
+        ? `<span class="avatar avatar-anonymous" style="background:${comment.anonymousColor}; color:#fff; width:28px; height:28px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:0.8rem;">?</span>`
+        : (comment.avatar ? `<img src="${getFileUrl(comment.avatar)}" alt="" style="width:28px; height:28px; border-radius:50%; object-fit:cover;">` : `<span class="avatar" style="width:28px; height:28px;">${(comment.username || '?').charAt(0).toUpperCase()}</span>`);
+      const replyBtnHtml = replyCallback ? `<button type="button" class="link-button comment-reply-btn" data-comment-id="${comment.id}" style="font-size: 0.8rem;">${I18n.t('comment_reply') || 'Ответить'}</button>` : '';
+      const actionsHtml = isOwn
+        ? `<span class="comment-actions" style="margin-left: auto;">${replyBtnHtml}
                <button type="button" class="link-button comment-edit-btn" data-comment-id="${comment.id}" style="font-size: 0.8rem;">${I18n.t('comment_edit') || 'Изменить'}</button>
                <button type="button" class="link-button comment-delete-btn" data-comment-id="${comment.id}" style="font-size: 0.8rem; color: var(--danger);">${I18n.t('comment_delete') || 'Удалить'}</button>
              </span>`
-          : '';
-        commentDiv.innerHTML = `
-          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px; flex-wrap: wrap;">
-            <strong style="font-size: 0.9rem;">${escapeHtml(comment.username)}</strong>
-            <span class="muted" style="font-size: 0.75rem;">${formatRelativeTime(comment.createdAt)}</span>
-            ${actionsHtml}
+        : `<span class="comment-actions" style="margin-left: auto;">${replyBtnHtml}</span>`;
+      commentDiv.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px; flex-wrap: wrap;">
+          ${avatarHtml}
+          <strong style="font-size: 0.9rem;">${authorName}</strong>
+          <span class="muted" style="font-size: 0.75rem;">${formatRelativeTime(comment.createdAt)}</span>
+          ${actionsHtml}
+        </div>
+        <div class="comment-body" style="font-size: 0.9rem;">${escapeHtml(comment.content)}</div>
+        <div class="comment-edit-form" style="display: none; margin-top: 6px;">
+          <textarea class="comment-input comment-edit-input" rows="2" style="width: 100%; margin-top: 4px; resize: vertical;"></textarea>
+          <div style="margin-top: 6px;">
+            <button type="button" class="btn primary small comment-save-btn" data-comment-id="${comment.id}">${I18n.t('save') || 'Сохранить'}</button>
+            <button type="button" class="btn ghost small comment-cancel-btn" data-comment-id="${comment.id}">${I18n.t('cancel') || 'Отмена'}</button>
           </div>
-          <div class="comment-body" style="font-size: 0.9rem;">${escapeHtml(comment.content)}</div>
-          <div class="comment-edit-form" style="display: none; margin-top: 6px;">
-            <textarea class="comment-input comment-edit-input" rows="2" style="width: 100%; margin-top: 4px; resize: vertical;"></textarea>
-            <div style="margin-top: 6px;">
-              <button type="button" class="btn primary small comment-save-btn" data-comment-id="${comment.id}">${I18n.t('save') || 'Сохранить'}</button>
-              <button type="button" class="btn ghost small comment-cancel-btn" data-comment-id="${comment.id}">${I18n.t('cancel') || 'Отмена'}</button>
-            </div>
-          </div>
-          <div class="comment-reactions" style="display: flex; align-items: center; gap: 6px; margin-top: 6px; flex-wrap: wrap;">
-            ${reactionRow}
-          </div>
-        `;
-        commentsList.appendChild(commentDiv);
+        </div>
+        <div class="comment-reactions" style="display: flex; align-items: center; gap: 6px; margin-top: 6px; flex-wrap: wrap;">
+          ${reactionRow}
+        </div>
+      `;
+      commentsList.appendChild(commentDiv);
 
-        if (isOwn) {
+      if (replyCallback) {
+        const replyBtn = commentDiv.querySelector('.comment-reply-btn');
+        if (replyBtn) replyBtn.addEventListener('click', () => replyCallback(comment.id, comment));
+      }
+
+      if (isOwn) {
           const editBtn = commentDiv.querySelector('.comment-edit-btn');
           const deleteBtn = commentDiv.querySelector('.comment-delete-btn');
           const bodyEl = commentDiv.querySelector('.comment-body');
@@ -595,6 +724,11 @@ async function loadComments(postId) {
                   const n = Math.max(0, (parseInt(commentCountEl.textContent, 10) || 0) - 1);
                   commentCountEl.textContent = n;
                 }
+                const threadCountEl = document.getElementById('threadCommentsCount');
+                if (threadCountEl) {
+                  const list = document.getElementById('comments-list-' + postId);
+                  threadCountEl.textContent = list ? list.querySelectorAll('.comment-item').length : 0;
+                }
                 const list = document.getElementById(`comments-list-${postId}`);
                 if (list && list.querySelectorAll('.comment-item').length === 0) {
                   list.innerHTML = '<p class="muted" style="font-size: 0.85rem;">Пока нет комментариев</p>';
@@ -623,16 +757,19 @@ async function loadComments(postId) {
                   b.classList.toggle('reaction-active', resp.currentUserReaction === k);
                   b.setAttribute('data-active', resp.currentUserReaction === k ? '1' : '0');
                 });
+                commentDiv.querySelectorAll('.comment-reaction-count').forEach(span => span.classList.add('reaction-count-update'));
+                setTimeout(() => commentDiv.querySelectorAll('.comment-reaction-count').forEach(s => s.classList.remove('reaction-count-update')), 400);
               }
             } catch (err) {
               console.error(err);
             }
           });
         });
-      });
-    }
+    });
+    return { totalCount, loaded: comments.length };
   } catch (error) {
     console.error('Ошибка загрузки комментариев:', error);
+    return { totalCount: 0, loaded: 0 };
   }
 }
 
@@ -679,6 +816,280 @@ const App = {
       }
       window.location.reload();
     });
+  },
+
+  async renderThreadPage() {
+    const authOk = await this.requireAuth();
+    if (!authOk) return;
+    this.setupLogoutButton();
+    this.setupLanguageSelector();
+    if (window.I18n && I18n.apply) I18n.apply(document);
+
+    const params = new URLSearchParams(window.location.search);
+    const postId = params.get('id');
+    const threadError = document.getElementById('threadError');
+    const threadPostWrap = document.getElementById('threadPostWrap');
+    const threadCommentsCard = document.getElementById('threadCommentsCard');
+    const threadShareWrap = document.getElementById('threadShareWrap');
+
+    if (!postId) {
+      if (threadError) { threadError.style.display = 'block'; threadError.textContent = I18n.t('thread_not_found') || 'Пост не указан.'; }
+      return;
+    }
+
+    try {
+      const res = await window.API.Post.getPost(postId);
+      if (!res.success || !res.post) {
+        if (threadError) { threadError.style.display = 'block'; threadError.textContent = I18n.t('thread_not_found') || 'Пост не найден.'; }
+        return;
+      }
+      const post = res.post;
+      const currentUserId = currentUser ? currentUser.id : null;
+      const isAnonymous = !!post.isAnonymous;
+      const author = isAnonymous ? null : await getUserById(post.userId);
+      const displayName = isAnonymous ? (I18n.t('anonymous') || 'Anonymous') : (author ? author.username : '?');
+      const anonymousColor = post.anonymousColor || '#6366f1';
+      const avatarHtml = isAnonymous
+        ? `<span class="avatar avatar-anonymous" style="background:${anonymousColor}; color:#fff;">?</span>`
+        : (author ? userAvatarHTML(author) : '?');
+      const authorLink = isAnonymous ? '#' : (author ? `user.html?id=${author.id}` : '#');
+      const reactionCounts = post.reactionCounts || { heart: 0, fire: 0, laugh: 0, wow: 0 };
+      const moodEmoji = getMoodEmoji(post.mood);
+      let attachmentHtml = '';
+      if (post.files && post.files.length > 0) {
+        const file = post.files[0];
+        const fileUrl = getFileUrl(file.filePath);
+        const safeName = escapeHtml(file.fileName);
+        if (file.fileType === 'image' && fileUrl) {
+          attachmentHtml = `<div class="post-attachment"><img src="${fileUrl}" alt="${safeName}" style="max-width:100%; border-radius:8px; margin-top:8px;"></div>`;
+        } else if (fileUrl) {
+          attachmentHtml = `<div class="post-attachment"><a href="${fileUrl}" download="${safeName}" target="_blank">${I18n.t('attachment_download') || 'Скачать'} (${safeName})</a></div>`;
+        }
+      }
+      const reactionRow = ['heart','fire','laugh','wow'].map(key => ({
+        key,
+        emoji: { heart: '❤️', fire: '🔥', laugh: '😂', wow: '😮' }[key]
+      })).map(r => `
+        <div class="post-reaction-item" style="display:inline-flex; flex-direction:column; align-items:center; margin-right:8px;">
+          <button type="button" class="reaction-button" data-reaction="${r.key}" ${post.currentUserReaction === r.key ? 'data-active="1"' : ''}>${r.emoji}</button>
+          <span class="reaction-count" data-reaction="${r.key}">${reactionCounts[r.key] || 0}</span>
+        </div>
+      `).join('');
+
+      threadPostWrap.innerHTML = `
+        <div class="post-header">
+          <div class="post-header-left">
+            <a href="${authorLink}" class="post-avatar-link"><span class="avatar">${avatarHtml}</span></a>
+            <div>
+              <strong>${isAnonymous ? '' : '<a href="' + authorLink + '">'}${escapeHtml(displayName)}${isAnonymous ? '' : '</a>'}</strong>
+              <span class="post-mood">${moodEmoji}</span>
+              <div class="post-meta">${formatRelativeTime(post.createdAt)}</div>
+            </div>
+          </div>
+        </div>
+        <div class="post-content">${escapeHtml(post.content || '')}</div>
+        ${attachmentHtml}
+        <div class="post-actions" style="display:flex; align-items:center; flex-wrap:wrap; gap:8px;">
+          <div class="post-reactions" style="display:flex; align-items:center; gap:4px;">${reactionRow}</div>
+          <span class="post-action-count" data-action="comment">${post.commentsCount || 0}</span>
+        </div>
+      `;
+      threadPostWrap.style.display = 'block';
+
+      threadPostWrap.querySelectorAll('.reaction-button').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const reactionType = btn.dataset.reaction;
+          try {
+            const response = await window.API.Post.toggleLike(post.id, reactionType);
+            if (response.success) {
+              ['heart','fire','laugh','wow'].forEach(k => {
+                const s = threadPostWrap.querySelector(`.reaction-count[data-reaction="${k}"]`);
+                if (s) s.textContent = (response.reactionCounts && response.reactionCounts[k]) || 0;
+              });
+              threadPostWrap.querySelectorAll('.reaction-button').forEach(b => {
+                b.classList.toggle('reaction-active', b.dataset.reaction === response.currentUserReaction);
+                b.setAttribute('data-active', b.dataset.reaction === response.currentUserReaction ? '1' : '0');
+              });
+            }
+          } catch (e) { console.error(e); }
+        });
+      });
+
+      threadCommentsCard.style.display = 'block';
+      threadShareWrap.style.display = 'block';
+      const threadCommentsCount = document.getElementById('threadCommentsCount');
+      const threadCommentsList = document.getElementById('threadCommentsList');
+      const threadCommentsSort = document.getElementById('threadCommentsSort');
+      const threadCommentsBody = document.getElementById('threadCommentsBody');
+      const threadCommentsToggle = document.getElementById('threadCommentsToggle');
+      const threadShareCopy = document.getElementById('threadShareCopy');
+      const threadShareCopied = document.getElementById('threadShareCopied');
+      const floatingPanel = document.getElementById('floatingCommentPanel');
+      const floatingReplyRef = document.getElementById('floatingCommentReplyRef');
+      const floatingInput = document.getElementById('floatingCommentInput');
+      const floatingAnonymous = document.getElementById('floatingCommentAnonymous');
+      const floatingSubmit = document.getElementById('floatingCommentSubmit');
+      const floatingEmojiBtn = document.getElementById('floatingCommentEmoji');
+      const floatingEmojiPicker = document.getElementById('floatingEmojiPicker');
+      const threadLoadMoreWrap = document.getElementById('threadLoadMoreWrap');
+      const threadLoadMore = document.getElementById('threadLoadMore');
+
+      if (threadCommentsCount) threadCommentsCount.textContent = post.commentsCount || 0;
+      threadCommentsList.id = 'comments-list-' + postId;
+
+      const COMMENT_PAGE_SIZE = 15;
+      let threadCommentsOffset = 0;
+      let threadCommentsTotalCount = 0;
+      let replyToCommentId = null;
+      let replyHighlightTimer = null;
+
+      const setPlaceholder = () => {
+        if (floatingInput) floatingInput.placeholder = (window.I18n && I18n.t('comment_placeholder')) || 'Написать комментарий...';
+      };
+      setPlaceholder();
+
+      if (floatingPanel) {
+        floatingPanel.classList.add('floating-comment-panel--visible');
+        floatingPanel.setAttribute('aria-hidden', 'false');
+      }
+
+      const clearReplyRef = () => {
+        replyToCommentId = null;
+        if (floatingReplyRef) { floatingReplyRef.style.display = 'none'; floatingReplyRef.innerHTML = ''; }
+        document.querySelectorAll('.comment-item.highlight').forEach(el => el.classList.remove('highlight'));
+      };
+
+      const replyCallback = (commentId, comment) => {
+        replyToCommentId = commentId;
+        const snippet = (comment.content || '').slice(0, 40);
+        if (floatingReplyRef) {
+          const clearLabel = (window.I18n && I18n.t('cancel')) || 'Отмена';
+          floatingReplyRef.innerHTML = `Ответ на #${commentId} <span class="floating-comment-reply-clear" role="button" tabindex="0">${clearLabel}</span>`;
+          floatingReplyRef.style.display = 'block';
+          floatingReplyRef.querySelector('.floating-comment-reply-clear').addEventListener('click', clearReplyRef);
+        }
+        const prefix = `>>#${commentId} `;
+        if (floatingInput) {
+          floatingInput.value = prefix + (floatingInput.value || '').trimStart();
+          floatingInput.focus();
+        }
+        document.querySelectorAll('.comment-item.highlight').forEach(el => el.classList.remove('highlight'));
+        const el = document.querySelector(`.comment-item[data-comment-id="${commentId}"]`);
+        if (el) {
+          el.classList.add('highlight');
+          if (replyHighlightTimer) clearTimeout(replyHighlightTimer);
+          replyHighlightTimer = setTimeout(() => el.classList.remove('highlight'), 1500);
+        }
+        floatingPanel && floatingPanel.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      };
+
+      const sendFloatingComment = async () => {
+        let content = floatingInput ? floatingInput.value.trim() : '';
+        if (!content) return;
+        if (replyToCommentId && !content.startsWith('>>#')) content = `>>#${replyToCommentId} ${content}`;
+        const anonymous = floatingAnonymous ? floatingAnonymous.checked : false;
+        try {
+          const response = await window.API.Post.createComment(post.id, content, anonymous);
+          if (response.success) {
+            floatingInput.value = '';
+            clearReplyRef();
+            threadCommentsTotalCount = (threadCommentsTotalCount || 0) + 1;
+            if (threadCommentsCount) threadCommentsCount.textContent = threadCommentsTotalCount;
+            const sort = threadCommentsSort ? threadCommentsSort.value : 'latest';
+            threadCommentsList.innerHTML = '';
+            threadCommentsOffset = 0;
+            const { totalCount } = await loadComments(postId, sort, COMMENT_PAGE_SIZE, 0, { replyCallback });
+            threadCommentsTotalCount = totalCount;
+            if (threadCommentsCount) threadCommentsCount.textContent = totalCount;
+            if (threadLoadMoreWrap) threadLoadMoreWrap.style.display = totalCount > COMMENT_PAGE_SIZE ? 'block' : 'none';
+          }
+        } catch (e) { alert(I18n.t('error_save_comment') || 'Ошибка отправки: ' + e.message); }
+      };
+
+      if (floatingSubmit) floatingSubmit.addEventListener('click', sendFloatingComment);
+      if (floatingInput) {
+        floatingInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendFloatingComment();
+          }
+        });
+        floatingInput.addEventListener('focus', () => floatingInput.classList.add('focus-expanded'));
+        floatingInput.addEventListener('blur', () => floatingInput.classList.remove('focus-expanded'));
+      }
+
+      const EMOJI_LIST = ['😀','😁','😂','😊','😎','😢','😭','😡','👍','👎','❤️','🔥','💬','👀','🙏','✨','🎉','🤔','😮','👏'];
+      if (floatingEmojiPicker) {
+        EMOJI_LIST.forEach(emoji => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.textContent = emoji;
+          btn.addEventListener('click', () => {
+            if (floatingInput) {
+              const start = floatingInput.selectionStart;
+              const end = floatingInput.selectionEnd;
+              const v = floatingInput.value;
+              floatingInput.value = v.slice(0, start) + emoji + v.slice(end);
+              floatingInput.selectionStart = floatingInput.selectionEnd = start + emoji.length;
+              floatingInput.focus();
+            }
+            floatingEmojiPicker.style.display = 'none';
+          });
+          floatingEmojiPicker.appendChild(btn);
+        });
+      }
+      if (floatingEmojiBtn && floatingEmojiPicker) {
+        floatingEmojiBtn.addEventListener('click', () => {
+          floatingEmojiPicker.style.display = floatingEmojiPicker.style.display === 'none' ? 'block' : 'none';
+        });
+      }
+
+      const refreshThreadComments = async (append = false) => {
+        const sort = threadCommentsSort ? threadCommentsSort.value : 'latest';
+        const offset = append ? threadCommentsOffset : 0;
+        if (!append) {
+          threadCommentsList.innerHTML = '';
+          threadCommentsOffset = 0;
+        }
+        const { totalCount, loaded } = await loadComments(postId, sort, COMMENT_PAGE_SIZE, offset, { append, replyCallback });
+        if (!append) threadCommentsTotalCount = totalCount;
+        threadCommentsOffset = append ? threadCommentsOffset + loaded : loaded;
+        if (threadCommentsCount) threadCommentsCount.textContent = totalCount;
+        if (threadLoadMoreWrap) threadLoadMoreWrap.style.display = totalCount > COMMENT_PAGE_SIZE && threadCommentsOffset < totalCount ? 'block' : 'none';
+      };
+
+      await refreshThreadComments(false);
+
+      if (threadLoadMore) {
+        threadLoadMore.addEventListener('click', () => refreshThreadComments(true));
+      }
+
+      if (threadCommentsSort) threadCommentsSort.addEventListener('change', () => refreshThreadComments(false));
+      if (threadCommentsToggle && threadCommentsBody) {
+        threadCommentsToggle.addEventListener('click', () => {
+          threadCommentsBody.classList.toggle('collapsed');
+          threadCommentsToggle.textContent = threadCommentsBody.classList.contains('collapsed')
+            ? (I18n.t('thread_expand') || 'Развернуть')
+            : (I18n.t('thread_collapse') || 'Свернуть');
+        });
+      }
+      if (threadShareCopy && threadShareCopied) {
+        threadShareCopy.addEventListener('click', () => {
+          const url = window.location.href;
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(url).then(() => {
+              threadShareCopied.style.display = 'inline';
+              setTimeout(() => { threadShareCopied.style.display = 'none'; }, 2000);
+            });
+          } else {
+            threadShareCopied.textContent = url;
+            threadShareCopied.style.display = 'inline';
+          }
+        });
+      }
+    } catch (e) {
+      if (threadError) { threadError.style.display = 'block'; threadError.textContent = e.message || 'Ошибка загрузки.'; }
+    }
   },
 
   async setupAuthPage() {
@@ -834,6 +1245,13 @@ const App = {
     const currentUser = await getCurrentUser();
     if (!currentUser) return;
 
+    const recAdminUsernames = ['HrishynM', 'MachalikD'];
+    const isRecAdmin = recAdminUsernames.includes((currentUser.username || '').trim());
+    const recPanel = document.getElementById('recSettingsPanel');
+    const recReset = document.getElementById('recSettingsReset');
+    if (recPanel) recPanel.style.display = isRecAdmin ? '' : 'none';
+    if (recReset) recReset.style.display = isRecAdmin ? '' : 'none';
+
     await this.renderMiniProfile(currentUser);
 
     try {
@@ -886,6 +1304,8 @@ const App = {
         const content = postContent.value.trim();
         const moodInput = document.querySelector('input[name="postMood"]:checked');
         const mood = moodInput ? moodInput.value : 'happy';
+        const anonymousEl = document.getElementById('postAnonymous');
+        const anonymous = anonymousEl ? anonymousEl.checked : false;
         const rawFile = postFile && postFile.files ? postFile.files[0] : null;
         const file = postImageBlob
           ? new File([postImageBlob], (rawFile && rawFile.name) || 'image.jpg', { type: postImageBlob.type })
@@ -894,7 +1314,7 @@ const App = {
         if (!content && !file) return;
 
         try {
-          const response = await window.API.Post.createPost(content, file, mood);
+          const response = await window.API.Post.createPost(content, file, mood, anonymous);
           if (response.success) {
             postContent.value = '';
             if (postFile) postFile.value = '';
@@ -950,9 +1370,35 @@ const App = {
         await this.renderSearchResults(searchInput.value, currentUser.id);
       }
       await this.renderRecommendations(currentUser.id, weights);
+      const indicator = document.getElementById('feedPresetIndicator');
+      if (indicator) {
+        const preset = REC_PRESETS[currentFeedPresetId];
+        indicator.textContent = preset ? (I18n.t(preset.nameKey) || preset.name) : '';
+      }
     };
 
     await this.refreshCurrentPage();
+
+    runGlobalOnboarding(currentUser);
+
+    const feedSwipeArea = document.getElementById('feedSwipeArea');
+    if (feedSwipeArea && typeof setupRecommendationSettingsPanel === 'function') {
+      const SWIPE_PRESETS = ['latest', 'popular', 'forYou'];
+      let touchStartX = 0;
+      feedSwipeArea.addEventListener('touchstart', (e) => { touchStartX = e.touches[0].clientX; }, { passive: true });
+      feedSwipeArea.addEventListener('touchend', (e) => {
+        const touchEndX = e.changedTouches[0].clientX;
+        const delta = touchStartX - touchEndX;
+        if (Math.abs(delta) < 60) return;
+        const idx = SWIPE_PRESETS.indexOf(currentFeedPresetId);
+        if (idx === -1) return;
+        const nextIdx = delta > 0 ? (idx + 1) % SWIPE_PRESETS.length : (idx - 1 + SWIPE_PRESETS.length) % SWIPE_PRESETS.length;
+        const nextId = SWIPE_PRESETS[nextIdx];
+        const presetsEl = document.getElementById('recPresets');
+        const btn = presetsEl && presetsEl.querySelector(`[data-preset="${nextId}"]`);
+        if (btn) btn.click();
+      }, { passive: true });
+    }
   },
 
   /**
@@ -1799,11 +2245,716 @@ const App = {
     }, POLLING_INTERVAL_MS);
   },
 
+  async renderMessengerPage() {
+    const authOk = await this.requireAuth();
+    if (!authOk) return;
+    this.setupLogoutButton();
+    this.setupLanguageSelector();
+    if (window.I18n && I18n.apply) I18n.apply(document);
+    const me = await getCurrentUser();
+    if (!me) return;
+    const floatingPanel = document.getElementById('messengerFloatingPanel');
+    const placeholder = document.getElementById('messagesChatPlaceholder');
+    const roomsList = document.getElementById('messagesRoomsList');
+    const recommendationsList = document.getElementById('messagesRecommendationsList');
+    const searchInput = document.getElementById('messagesSearchInput');
+    const roomTitleEl = document.getElementById('messengerRoomTitle');
+    const roomBadgeEl = document.getElementById('messengerRoomBadge');
+    const typingEl = document.getElementById('messengerTypingIndicator');
+    const autoscrollCheck = document.getElementById('messengerAutoscroll');
+    const messagesContainer = document.getElementById('messengerMessages');
+    const newMessageBanner = document.getElementById('messengerNewMessageBanner');
+    const newMessageBtn = document.getElementById('messengerNewMessageBtn');
+    const replyRefEl = document.getElementById('messengerReplyRef');
+    const inputEl = document.getElementById('messengerInput');
+    const emojiBtn = document.getElementById('messengerEmojiBtn');
+    const emojiPicker = document.getElementById('messengerEmojiPicker');
+    const anonymousCheck = document.getElementById('messengerAnonymous');
+    const sendBtn = document.getElementById('messengerSendBtn');
+    const createRoomBtn = document.getElementById('messengerCreateRoomBtn');
+    const createRoomModal = document.getElementById('messengerCreateRoomModal');
+    const createRoomTitle = document.getElementById('createRoomTitle');
+    const createRoomType = document.getElementById('createRoomType');
+    const createRoomAnonymous = document.getElementById('createRoomAnonymous');
+    const createRoomExpires = document.getElementById('createRoomExpires');
+    const createRoomPublic = document.getElementById('createRoomPublic');
+    const createRoomMembersInput = document.getElementById('createRoomMembersInput');
+    const createRoomSubmit = document.getElementById('messengerCreateRoomSubmit');
+    const createRoomCancel = document.getElementById('messengerCreateRoomCancel');
+    const messengerSearchInput = document.getElementById('messengerSearchInput');
+    const messengerFilterAuthor = document.getElementById('messengerFilterAuthor');
+    const messengerFilterDate = document.getElementById('messengerFilterDate');
+    const messengerMinimizeBtn = document.getElementById('messengerMinimizeBtn');
+    const messengerResizeHandle = document.getElementById('messengerResizeHandle');
+    const messengerMutedBanner = document.getElementById('messengerMutedBanner');
+    const messengerAddMembersBtn = document.getElementById('messengerAddMembersBtn');
+    const messengerMembersModal = document.getElementById('messengerMembersModal');
+    const messengerMembersList = document.getElementById('messengerMembersList');
+    const messengerAddMemberSearch = document.getElementById('messengerAddMemberSearch');
+    const messengerAddMemberBtn = document.getElementById('messengerAddMemberBtn');
+    const messengerMembersModalClose = document.getElementById('messengerMembersModalClose');
+    const messengerMuteModal = document.getElementById('messengerMuteModal');
+    const messengerMuteTargetName = document.getElementById('messengerMuteTargetName');
+    const messengerMuteMinutes = document.getElementById('messengerMuteMinutes');
+    const messengerMuteConfirm = document.getElementById('messengerMuteConfirm');
+    const messengerMuteCancel = document.getElementById('messengerMuteCancel');
+    const messengerHelpBtn = document.getElementById('messengerHelpBtn');
+    const messengerHelpPopup = document.getElementById('messengerHelpPopup');
+    let currentRoom = null;
+    let lastMessageId = 0;
+    let replyToMessageId = null;
+    let pollTimer = null;
+    let allMessages = [];
+    let isMuted = false;
+    let mutedUntil = null;
+    let amIAdmin = false;
+    const POLL_MS = 2500;
+    const TYPING_DECAY_MS = 2000;
+    const EMOJI_LIST = ['😀','😁','😂','😊','👍','❤️','🔥','👀','😢','😮','🎉','✨'];
+    function formatMessageTime(iso) {
+      try {
+        const d = new Date(iso);
+        const now = new Date();
+        if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+        return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+      } catch { return iso; }
+    }
+    function getAvatarHtml(userOrMsg, isAnonymous, anonymousColor) {
+      if (isAnonymous && anonymousColor) return `<span style="background:${anonymousColor};color:#fff;width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:0.8rem;">?</span>`;
+      const avatar = userOrMsg.avatar || userOrMsg.fromAvatar;
+      if (avatar) return `<img src="${getFileUrl(avatar)}" alt="">`;
+      const name = (userOrMsg.username || userOrMsg.fromUsername || '?').toString();
+      return `<span class="conv-avatar-letter">${name.charAt(0).toUpperCase()}</span>`;
+    }
+    function clearReplyRef() {
+      replyToMessageId = null;
+      if (replyRefEl) { replyRefEl.classList.add('hidden'); replyRefEl.innerHTML = ''; }
+    }
+    function isAtBottom(el) {
+      if (!el) return true;
+      return el.scrollHeight - el.scrollTop - el.clientHeight < 60;
+    }
+    function scrollToBottom(force) {
+      if (!messagesContainer) return;
+      if (force || (autoscrollCheck && autoscrollCheck.checked)) {
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        if (newMessageBanner) newMessageBanner.classList.add('hidden');
+      }
+    }
+    function renderMessage(msg, room, searchQuery) {
+      const isOwn = String(msg.fromUserId) === String(me.id);
+      const displayName = msg.isAnonymous ? (I18n.t('anonymous') || 'Anonymous') : (msg.fromUsername || '?');
+      const avatarHtml = getAvatarHtml(msg, msg.isAnonymous, msg.anonymousColor);
+      const replyHtml = msg.replyTo ? `<div class="messenger-msg-reply-to">${escapeHtml((msg.replyTo.content || '').slice(0, 50))}${(msg.replyTo.content || '').length > 50 ? '…' : ''}</div>` : '';
+      let textHtml = escapeHtml(msg.content || '');
+      if (searchQuery) {
+        const q = searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const re = new RegExp(`(${q})`, 'gi');
+        textHtml = textHtml.replace(re, '<span class="mark-highlight">$1</span>');
+      }
+      const reactionEmojis = ['❤️','🔥','😂','😮'];
+      const reactionCounts = {};
+      (msg.reactions || []).forEach(r => { reactionCounts[r.emoji] = (reactionCounts[r.emoji] || 0) + 1; });
+      const reactionRow = reactionEmojis.map(emoji => {
+        const count = reactionCounts[emoji] || 0;
+        const isActive = (msg.reactions || []).some(r => r.emoji === emoji && String(r.userId) === String(me.id));
+        return `<button type="button" class="messenger-reaction-btn ${isActive ? 'reaction-active' : ''}" data-emoji="${emoji}" data-message-id="${msg.id}">${emoji} ${count > 0 ? count : ''}</button>`;
+      }).join('');
+      const div = document.createElement('div');
+      div.className = 'messenger-msg' + (isOwn ? ' own' : '') + (replyToMessageId === msg.id ? ' highlight' : '');
+      div.dataset.messageId = msg.id;
+      div.innerHTML = `
+        <span class="messenger-msg-avatar">${avatarHtml}</span>
+        <div class="messenger-msg-bubble">
+          <div class="messenger-msg-meta" style="font-size:0.75rem;opacity:0.9;margin-bottom:2px;">${escapeHtml(displayName)}</div>
+          ${replyHtml}
+          <div class="messenger-msg-text">${textHtml}</div>
+          <div class="messenger-msg-time">${formatMessageTime(msg.createdAt)}</div>
+          <div class="messenger-msg-reactions">${reactionRow}</div>
+          <div class="messenger-msg-actions"><button type="button" class="messenger-msg-reply-btn" data-message-id="${msg.id}">${I18n.t('comment_reply') || 'Ответить'}</button></div>
+        </div>
+      `;
+      div.querySelectorAll('.messenger-reaction-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const mid = parseInt(btn.dataset.messageId, 10);
+          const emojiKey = btn.dataset.emoji;
+          btn.classList.add('reaction-pop');
+          setTimeout(() => btn.classList.remove('reaction-pop'), 400);
+          try {
+            const resp = await window.API.Rooms.toggleMessageReaction(currentRoom.id, mid, emojiKey);
+            if (resp.success && resp.reactions) {
+              const counts = {};
+              resp.reactions.forEach(r => { counts[r.emoji] = (counts[r.emoji] || 0) + 1; });
+              div.querySelectorAll('.messenger-reaction-btn').forEach(b => {
+                const e = b.dataset.emoji;
+                const c = counts[e] || 0;
+                b.innerHTML = e + (c > 0 ? ' ' + c : '');
+                b.classList.toggle('reaction-active', resp.reactions.some(r => r.emoji === e && String(r.userId) === String(me.id)));
+              });
+            }
+          } catch (e) { console.error(e); }
+        });
+      });
+      div.querySelector('.messenger-msg-reply-btn').addEventListener('click', () => {
+        replyToMessageId = msg.id;
+        replyRefEl.innerHTML = `${I18n.t('comment_reply') || 'Ответ'} #${msg.id} <span class="messenger-reply-clear">${I18n.t('cancel') || 'Отмена'}</span>`;
+        replyRefEl.classList.remove('hidden');
+        replyRefEl.querySelector('.messenger-reply-clear').onclick = clearReplyRef;
+        inputEl.value = `>>#${msg.id} ` + (inputEl.value || '').trimStart();
+        inputEl.focus();
+        messagesContainer.querySelectorAll('.messenger-msg.highlight').forEach(el => el.classList.remove('highlight'));
+        div.classList.add('highlight');
+        setTimeout(() => div.classList.remove('highlight'), 1200);
+        scrollToBottom(true);
+      });
+      return div;
+    }
+    function getSearchQuery() { return (messengerSearchInput && messengerSearchInput.value || '').trim().toLowerCase(); }
+    function getAuthorFilter() { return messengerFilterAuthor ? messengerFilterAuthor.value : ''; }
+    function getDateFilter() { return messengerFilterDate ? messengerFilterDate.value : ''; }
+    function msgMatchesFilters(msg) {
+      const q = getSearchQuery();
+      if (q) {
+        const content = (msg.content || '').toLowerCase();
+        const author = (msg.fromUsername || '').toLowerCase();
+        if (!content.includes(q) && !author.includes(q)) return false;
+      }
+      const authorId = getAuthorFilter();
+      if (authorId && String(msg.fromUserId) !== authorId) return false;
+      const dateFilter = getDateFilter();
+      if (dateFilter) {
+        const msgDate = (msg.createdAt || '').slice(0, 10);
+        if (msgDate !== dateFilter) return false;
+      }
+      return true;
+    }
+    function applyFilters() {
+      if (!messagesContainer) return;
+      const q = getSearchQuery();
+      const filtered = allMessages.filter(m => msgMatchesFilters(m));
+      messagesContainer.innerHTML = '';
+      filtered.forEach(msg => messagesContainer.appendChild(renderMessage(msg, currentRoom, q)));
+    }
+    async function loadRoomMessages(appendNewOnly) {
+      if (!currentRoom || !messagesContainer) return;
+      try {
+        const opts = appendNewOnly && lastMessageId ? { afterId: lastMessageId, limit: 50 } : { limit: 50, offset: 0 };
+        const resp = await window.API.Rooms.getRoomMessages(currentRoom.id, opts);
+        if (!resp.success || !resp.messages) return;
+        const list = resp.messages;
+        if (list.length === 0 && !appendNewOnly) {
+          allMessages = [];
+          messagesContainer.innerHTML = '<p class="muted">' + (I18n.t('no_messages') || 'Нет сообщений') + '</p>';
+          return;
+        }
+        if (appendNewOnly) {
+          list.forEach(msg => {
+            if (msg.id > lastMessageId) {
+              lastMessageId = Math.max(lastMessageId, msg.id);
+              allMessages.push(msg);
+              if (msgMatchesFilters(msg)) {
+                const node = renderMessage(msg, currentRoom, getSearchQuery());
+                messagesContainer.appendChild(node);
+              }
+              if (autoscrollCheck && autoscrollCheck.checked) scrollToBottom(true);
+              else if (!isAtBottom(messagesContainer) && floatingPanel && floatingPanel.classList.contains('visible')) {
+                newMessageBanner.classList.remove('hidden');
+                floatingPanel.classList.add('new-message-notify');
+                setTimeout(() => floatingPanel.classList.remove('new-message-notify'), 500);
+              }
+            }
+          });
+        } else {
+          allMessages = list;
+          const authorOpts = {};
+          list.forEach(m => {
+            const id = m.fromUserId;
+            const name = m.isAnonymous ? (I18n.t('anonymous') || '?') : (m.fromUsername || '?');
+            if (!authorOpts[id]) authorOpts[id] = name;
+          });
+          if (messengerFilterAuthor) {
+            const cur = messengerFilterAuthor.value;
+            messengerFilterAuthor.innerHTML = '<option value="">' + (I18n.t('messenger_filter_all') || 'Все') + '</option>' +
+              Object.entries(authorOpts).map(([id, name]) => `<option value="${id}">${escapeHtml(name)}</option>`).join('');
+            messengerFilterAuthor.value = cur || '';
+          }
+          applyFilters();
+          scrollToBottom(true);
+        }
+      } catch (e) { console.error(e); }
+    }
+    async function pollRoom() {
+      if (!currentRoom) return;
+      await loadRoomMessages(true);
+      try {
+        const t = await window.API.Rooms.getTyping(currentRoom.id);
+        if (t.success && t.typingUserIds && t.typingUserIds.length) {
+          typingEl.textContent = (I18n.t('messenger_typing') || 'печатает...');
+          typingEl.classList.remove('hidden');
+        } else typingEl.classList.add('hidden');
+      } catch (_) { typingEl.classList.add('hidden'); }
+    }
+    function startPolling() {
+      if (pollTimer) clearInterval(pollTimer);
+      pollTimer = setInterval(pollRoom, POLL_MS);
+    }
+    function stopPolling() {
+      if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+    }
+    async function sendMessage() {
+      const text = (inputEl && inputEl.value || '').trim();
+      if (!text || !currentRoom) return;
+      const anonymous = anonymousCheck ? anonymousCheck.checked : false;
+      let content = text;
+      if (replyToMessageId && content.startsWith('>>#')) {
+        const match = content.match(/^>>#\d+\s*/);
+        if (match) content = content.slice(match[0].length).trim();
+      }
+      if (!content) return;
+      try {
+        const resp = await window.API.Rooms.sendRoomMessage(currentRoom.id, content, { anonymous, replyToId: replyToMessageId });
+        if (!resp.success && resp.mutedUntil) {
+          isMuted = true;
+          mutedUntil = resp.mutedUntil;
+          if (messengerMutedBanner) {
+            try {
+              const untilStr = new Date(resp.mutedUntil).toLocaleString();
+              messengerMutedBanner.textContent = (I18n.t('messenger_muted_until') || 'Вы замучены до') + ' ' + untilStr;
+              messengerMutedBanner.classList.remove('hidden');
+            } catch (_) {}
+          }
+          if (inputEl) inputEl.disabled = true;
+          return;
+        }
+        if (resp.success && resp.message) {
+          inputEl.value = '';
+          clearReplyRef();
+          allMessages.push(resp.message);
+          lastMessageId = Math.max(lastMessageId, resp.message.id);
+          if (msgMatchesFilters(resp.message)) {
+            messagesContainer.appendChild(renderMessage(resp.message, currentRoom, getSearchQuery()));
+          }
+          scrollToBottom(true);
+        }
+      } catch (e) { alert((I18n.t('error_save_comment') || 'Ошибка') + ': ' + e.message); }
+    }
+    async function openRoom(room) {
+      currentRoom = room;
+      document.body.classList.add('messenger-panel-open');
+      if (placeholder) placeholder.style.display = 'none';
+      if (floatingPanel) { floatingPanel.classList.add('visible'); floatingPanel.setAttribute('aria-hidden', 'false'); }
+      if (roomTitleEl) roomTitleEl.textContent = room.title || (I18n.t('messenger_dm') || 'Личный чат');
+      if (roomBadgeEl) {
+        roomBadgeEl.classList.remove('hidden');
+        if ((room.messageCount || 0) >= 15) roomBadgeEl.textContent = '🔥 Hot';
+        else roomBadgeEl.textContent = room.type === 'dm' ? '' : (room.memberCount || 0) + '';
+        if (!roomBadgeEl.textContent) roomBadgeEl.classList.add('hidden');
+      }
+      isMuted = false;
+      mutedUntil = null;
+      amIAdmin = false;
+      if (messengerMutedBanner) { messengerMutedBanner.classList.add('hidden'); }
+      if (inputEl) inputEl.disabled = false;
+      if (messengerAddMembersBtn) messengerAddMembersBtn.style.display = room.type === 'group' ? '' : 'none';
+      try {
+        const [muteResp, membersResp] = await Promise.all([
+          window.API.Rooms.getMuteStatus(room.id),
+          window.API.Rooms.getRoomMembers(room.id)
+        ]);
+        if (muteResp && muteResp.muted && muteResp.mutedUntil) {
+          isMuted = true;
+          mutedUntil = muteResp.mutedUntil;
+          if (messengerMutedBanner) {
+            try {
+              messengerMutedBanner.textContent = (I18n.t('messenger_muted_until') || 'Вы замучены до') + ' ' + new Date(muteResp.mutedUntil).toLocaleString();
+              messengerMutedBanner.classList.remove('hidden');
+            } catch (_) {}
+          }
+          if (inputEl) inputEl.disabled = true;
+        }
+        const meMember = (membersResp.members || []).find(m => String(m.userId) === String(me.id));
+        amIAdmin = meMember && meMember.isAdmin;
+        if (messengerAddMembersBtn) messengerAddMembersBtn.style.display = (room.type === 'group' && amIAdmin) ? '' : 'none';
+      } catch (_) {}
+      lastMessageId = 0;
+      if (messengerSearchInput) messengerSearchInput.value = '';
+      if (messengerFilterAuthor) messengerFilterAuthor.value = '';
+      if (messengerFilterDate) messengerFilterDate.value = '';
+      loadRoomMessages(false);
+      startPolling();
+      if (typingEl) typingEl.classList.add('hidden');
+      if (newMessageBanner) newMessageBanner.classList.add('hidden');
+      roomsList && roomsList.querySelectorAll('.messages-conv-item').forEach(el => el.classList.remove('selected'));
+      const sel = roomsList && roomsList.querySelector(`[data-room-id="${room.id}"]`);
+      if (sel) sel.classList.add('selected');
+      runFirstTimeTour();
+    }
+    function closeRoom() {
+      stopPolling();
+      currentRoom = null;
+      document.body.classList.remove('messenger-panel-open', 'messenger-panel-collapsed');
+      if (floatingPanel) { floatingPanel.classList.remove('visible', 'collapsed'); floatingPanel.setAttribute('aria-hidden', 'true'); }
+      if (messengerMinimizeBtn) messengerMinimizeBtn.textContent = '−';
+      if (placeholder) placeholder.style.display = 'flex';
+      roomsList && roomsList.querySelectorAll('.messages-conv-item').forEach(el => el.classList.remove('selected'));
+    }
+    function renderRoomItem(room) {
+      const div = document.createElement('button');
+      div.type = 'button';
+      div.className = 'messages-conv-item' + (currentRoom && currentRoom.id === room.id ? ' selected' : '') + ((room.messageCount || 0) >= 15 ? ' messenger-room-item hot' : '');
+      div.dataset.roomId = room.id;
+      const title = room.title || (I18n.t('messenger_dm') || 'Личный чат');
+      const preview = (room.lastMessageContent || '').slice(0, 35);
+      const timeStr = room.lastMessageAt ? formatMessageTime(room.lastMessageAt) : '';
+      div.innerHTML = `
+        <span class="conv-avatar-wrap"><span class="conv-avatar-letter">${(title || '?').charAt(0).toUpperCase()}</span></span>
+        <div class="conv-body">
+          <div class="conv-meta"><span class="conv-name">${escapeHtml(title)}</span>${timeStr ? `<span class="conv-time">${timeStr}</span>` : ''}</div>
+          <div class="conv-preview">${escapeHtml(preview) || (I18n.t('no_messages') || 'Нет сообщений')}</div>
+        </div>
+      `;
+      div.addEventListener('click', () => openRoom(room));
+      return div;
+    }
+    async function refreshRooms() {
+      try {
+        const resp = await window.API.Rooms.getRooms();
+        if (!roomsList) return;
+        roomsList.innerHTML = '';
+        if (resp.success && resp.rooms && resp.rooms.length) resp.rooms.forEach(room => roomsList.appendChild(renderRoomItem(room)));
+        else roomsList.innerHTML = '<p class="muted">' + (I18n.t('no_conversations') || 'Нет чатов') + '</p>';
+      } catch (e) { if (roomsList) roomsList.innerHTML = '<p class="muted">' + (I18n.t('no_conversations') || 'Нет чатов') + '</p>'; }
+    }
+    if (emojiPicker) EMOJI_LIST.forEach(emoji => {
+      const btn = document.createElement('button'); btn.type = 'button'; btn.textContent = emoji;
+      btn.addEventListener('click', () => {
+        const start = inputEl.selectionStart, end = inputEl.selectionEnd, v = inputEl.value;
+        inputEl.value = v.slice(0, start) + emoji + v.slice(end);
+        inputEl.selectionStart = inputEl.selectionEnd = start + emoji.length;
+        inputEl.focus();
+      });
+      emojiPicker.appendChild(btn);
+    });
+    if (emojiBtn && emojiPicker) emojiBtn.addEventListener('click', () => emojiPicker.classList.toggle('hidden'));
+    if (sendBtn) sendBtn.addEventListener('click', sendMessage);
+    if (inputEl) {
+      inputEl.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } });
+      let typingTimeout;
+      inputEl.addEventListener('input', () => {
+        if (!currentRoom) return;
+        window.API.Rooms.setTyping(currentRoom.id, true).catch(() => {});
+        clearTimeout(typingTimeout);
+        typingTimeout = setTimeout(() => window.API.Rooms.setTyping(currentRoom.id, false).catch(() => {}), TYPING_DECAY_MS);
+      });
+    }
+    if (newMessageBtn) newMessageBtn.addEventListener('click', () => scrollToBottom(true));
+    const messengerFab = document.getElementById('messengerFab');
+    if (messengerFab && floatingPanel) {
+      messengerFab.addEventListener('click', () => {
+        if (currentRoom) {
+          floatingPanel.classList.remove('collapsed');
+          if (messengerMinimizeBtn) messengerMinimizeBtn.textContent = '−';
+          floatingPanel.classList.add('visible');
+          document.body.classList.add('messenger-panel-open');
+          if (placeholder) placeholder.style.display = 'none';
+        }
+      });
+      if (window.I18n) {
+        const fabLabel = I18n.t('messenger_fab_label') || (I18n.t('nav_messages') || 'Messages');
+        messengerFab.setAttribute('aria-label', fabLabel);
+        messengerFab.setAttribute('title', fabLabel);
+      }
+    }
+    const closeBtn = document.getElementById('messengerCloseBtn');
+    if (closeBtn) closeBtn.addEventListener('click', () => closeRoom());
+    if (messengerHelpBtn && window.I18n) {
+      const helpTitle = I18n.t('messenger_help_title') || 'Help';
+      messengerHelpBtn.setAttribute('title', helpTitle);
+      messengerHelpBtn.setAttribute('aria-label', helpTitle);
+    }
+    if (messengerSearchInput) messengerSearchInput.addEventListener('input', () => applyFilters());
+    if (messengerFilterAuthor) messengerFilterAuthor.addEventListener('change', () => applyFilters());
+    if (messengerFilterDate) messengerFilterDate.addEventListener('change', () => applyFilters());
+    if (messengerMinimizeBtn && floatingPanel) {
+      messengerMinimizeBtn.addEventListener('click', () => {
+        const collapsed = floatingPanel.classList.toggle('collapsed');
+        document.body.classList.toggle('messenger-panel-collapsed', collapsed);
+        messengerMinimizeBtn.textContent = collapsed ? '+' : '−';
+        const title = collapsed
+          ? (I18n.t('messenger_expand') || 'Развернуть')
+          : (I18n.t('messenger_minimize') || 'Свернуть');
+        messengerMinimizeBtn.setAttribute('title', title);
+        messengerMinimizeBtn.setAttribute('aria-label', title);
+      });
+    }
+    if (messengerResizeHandle && floatingPanel) {
+      let resizeStartX = 0, resizeStartW = 0;
+      messengerResizeHandle.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        resizeStartX = e.clientX;
+        resizeStartW = floatingPanel.offsetWidth;
+        const onMove = (ev) => {
+          const delta = resizeStartX - ev.clientX;
+          let w = Math.max(280, Math.min(window.innerWidth * 0.9, resizeStartW + delta));
+          floatingPanel.style.width = w + 'px';
+        };
+        const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+      });
+      if (window.I18n) {
+        const resizeTitle = I18n.t('messenger_resize') || 'Изменить размер';
+        messengerResizeHandle.setAttribute('title', resizeTitle);
+      }
+    }
+    function runFirstTimeTour() {
+      const key = 'messenger_tour_done';
+      if (localStorage.getItem(key)) return;
+      if (!messengerHelpPopup) return;
+      localStorage.setItem(key, '1');
+      setTimeout(() => { if (messengerHelpPopup) messengerHelpPopup.classList.remove('hidden'); }, 800);
+      setTimeout(() => { if (messengerHelpPopup) messengerHelpPopup.classList.add('hidden'); }, 6000);
+    }
+    if (messengerHelpBtn && messengerHelpPopup) {
+      messengerHelpBtn.addEventListener('click', () => messengerHelpPopup.classList.toggle('hidden'));
+    }
+    document.addEventListener('click', (e) => {
+      if (messengerHelpPopup && !messengerHelpPopup.classList.contains('hidden') && !messengerHelpPopup.contains(e.target) && !messengerHelpBtn.contains(e.target)) {
+        messengerHelpPopup.classList.add('hidden');
+      }
+    });
+    let muteTargetUserId = null;
+    async function loadMembersModal() {
+      if (!currentRoom || !messengerMembersList) return;
+      try {
+        const resp = await window.API.Rooms.getRoomMembers(currentRoom.id);
+        const members = resp.members || [];
+        messengerMembersList.innerHTML = '';
+        members.forEach(m => {
+          const row = document.createElement('div');
+          row.className = 'messenger-member-row';
+          row.dataset.userId = m.userId;
+          const name = m.username || ('#' + m.userId);
+          const avatarHtml = m.avatar ? `<img src="${getFileUrl(m.avatar)}" alt="">` : `<span>${(name || '?').charAt(0).toUpperCase()}</span>`;
+          const isMe = String(m.userId) === String(me.id);
+          const actionsHtml = amIAdmin && !isMe ? `
+            <div class="messenger-member-actions">
+              <button type="button" class="btn ghost small messenger-mute-member-btn" data-user-id="${m.userId}" data-username="${escapeHtml(name)}" title="${I18n.t('messenger_mute_user') || 'Замутить'}">🔇</button>
+              <button type="button" class="btn ghost small messenger-remove-member-btn" data-user-id="${m.userId}" data-username="${escapeHtml(name)}" title="${I18n.t('messenger_remove') || 'Удалить'}">✕</button>
+            </div>
+          ` : '';
+          row.innerHTML = `
+            <div class="messenger-member-info">
+              <span class="avatar">${avatarHtml}</span>
+              <span>${escapeHtml(name)}${m.isAdmin ? ' ★' : ''}${isMe ? ' (' + (I18n.t('you') || 'вы') + ')' : ''}</span>
+            </div>
+            ${actionsHtml}
+          `;
+          const muteBtn = row.querySelector('.messenger-mute-member-btn');
+          const removeBtn = row.querySelector('.messenger-remove-member-btn');
+          if (muteBtn) muteBtn.addEventListener('click', () => {
+            muteTargetUserId = m.userId;
+            if (messengerMuteTargetName) messengerMuteTargetName.textContent = name;
+            if (messengerMuteModal) messengerMuteModal.classList.remove('hidden');
+          });
+          if (removeBtn) removeBtn.addEventListener('click', async () => {
+            if (!confirm((I18n.t('messenger_remove_confirm') || 'Удалить') + ' ' + name + '?')) return;
+            try {
+              await window.API.Rooms.removeRoomMember(currentRoom.id, m.userId);
+              row.remove();
+              await refreshRooms();
+            } catch (err) { alert((I18n.t('error') || 'Ошибка') + ': ' + err.message); }
+          });
+          messengerMembersList.appendChild(row);
+        });
+      } catch (e) { if (messengerMembersList) messengerMembersList.innerHTML = '<p class="muted">' + (e.message || 'Ошибка') + '</p>'; }
+    }
+    if (messengerAddMembersBtn && messengerMembersModal) {
+      messengerAddMembersBtn.addEventListener('click', () => {
+        if (!currentRoom) return;
+        messengerMembersModal.classList.remove('hidden');
+        loadMembersModal();
+      });
+    }
+    if (messengerMembersModal) {
+      messengerMembersModal.querySelector('.messenger-modal-backdrop')?.addEventListener('click', () => messengerMembersModal.classList.add('hidden'));
+      messengerMembersModalClose?.addEventListener('click', () => messengerMembersModal.classList.add('hidden'));
+    }
+    if (messengerAddMemberSearch && messengerAddMemberBtn) {
+      messengerAddMemberBtn.addEventListener('click', async () => {
+        const q = (messengerAddMemberSearch.value || '').trim();
+        if (!q || !currentRoom) return;
+        try {
+          const resp = await window.API.User.searchUsers(q);
+          const users = (resp.users || []).filter(u => String(u.id) !== String(me.id));
+          if (users.length === 0) { alert(I18n.t('no_users_found') || 'Никого не найдено'); return; }
+          const ids = users.slice(0, 10).map(u => u.id);
+          await window.API.Rooms.addRoomMembers(currentRoom.id, ids);
+          messengerAddMemberSearch.value = '';
+          await loadMembersModal();
+          await refreshRooms();
+        } catch (err) { alert((I18n.t('error') || 'Ошибка') + ': ' + err.message); }
+      });
+    }
+    if (messengerMuteModal) {
+      messengerMuteModal.querySelector('.messenger-modal-backdrop')?.addEventListener('click', () => { messengerMuteModal.classList.add('hidden'); muteTargetUserId = null; });
+      messengerMuteCancel?.addEventListener('click', () => { messengerMuteModal.classList.add('hidden'); muteTargetUserId = null; });
+    }
+    if (messengerMuteConfirm && messengerMuteMinutes) {
+      messengerMuteConfirm.addEventListener('click', async () => {
+        if (!currentRoom || !muteTargetUserId) return;
+        const minutes = parseInt(messengerMuteMinutes.value || '60', 10);
+        try {
+          await window.API.Rooms.muteUser(currentRoom.id, muteTargetUserId, minutes);
+          messengerMuteModal.classList.add('hidden');
+          muteTargetUserId = null;
+        } catch (err) { alert((I18n.t('error') || 'Ошибка') + ': ' + err.message); }
+      });
+    }
+    if (createRoomBtn && createRoomModal) {
+      createRoomBtn.addEventListener('click', () => {
+        createRoomModal.classList.remove('hidden');
+        if (createRoomTitle) createRoomTitle.value = '';
+        if (createRoomType) createRoomType.value = 'group';
+        if (createRoomAnonymous) createRoomAnonymous.checked = false;
+        if (createRoomExpires) createRoomExpires.value = '';
+        if (createRoomPublic) createRoomPublic.checked = true;
+        if (createRoomMembersInput) createRoomMembersInput.value = '';
+      });
+    }
+    if (createRoomModal) {
+      createRoomModal.querySelector('.messenger-modal-backdrop').addEventListener('click', () => createRoomModal.classList.add('hidden'));
+      if (createRoomCancel) createRoomCancel.addEventListener('click', () => createRoomModal.classList.add('hidden'));
+    }
+    if (createRoomSubmit) {
+      createRoomSubmit.addEventListener('click', async () => {
+        const title = (createRoomTitle && createRoomTitle.value || '').trim() || null;
+        const type = (createRoomType && createRoomType.value) || 'group';
+        const isAnonymous = createRoomAnonymous && createRoomAnonymous.checked;
+        const expiresVal = createRoomExpires && createRoomExpires.value;
+        const expiresInDays = expiresVal ? parseInt(expiresVal, 10) : null;
+        const isPublic = createRoomPublic && createRoomPublic.checked;
+        const membersStr = createRoomMembersInput && createRoomMembersInput.value || '';
+        let memberIds = [];
+        if (membersStr.trim()) membersStr.split(/[\s,]+/).filter(Boolean).forEach(p => { const id = parseInt(p, 10); if (!isNaN(id)) memberIds.push(id); });
+        try {
+          const resp = await window.API.Rooms.createRoom({ title, type, isAnonymous, expiresInDays, isPublic, memberIds });
+          if (resp.success && resp.room) { createRoomModal.classList.add('hidden'); await refreshRooms(); openRoom(resp.room); }
+        } catch (e) { alert('Ошибка: ' + e.message); }
+      });
+    }
+    async function loadRecommendations() {
+      try {
+        const recResp = await window.API.Recommendations.getUsers();
+        let toShow = (recResp.users || recResp.recommendations || []).filter(u => String(u.id) !== String(me.id)).slice(0, 10);
+        if (toShow.length === 0) {
+          const recentResp = await window.API.User.getRecentUsers();
+          toShow = (recentResp.users || []).filter(u => String(u.id) !== String(me.id)).slice(0, 5);
+        }
+        if (!recommendationsList) return;
+        recommendationsList.innerHTML = '';
+        if (toShow.length === 0) { recommendationsList.innerHTML = '<p class="muted">' + (I18n.t('no_recommendations_msg') || 'Нет рекомендаций') + '</p>'; return; }
+        toShow.forEach(u => {
+          const div = document.createElement('button');
+          div.type = 'button';
+          div.className = 'messages-conv-item';
+          div.innerHTML = `<span class="conv-avatar-wrap">${u.avatar ? `<img class="conv-avatar" src="${getFileUrl(u.avatar)}" alt="">` : `<span class="conv-avatar-letter">${(u.username || '?').charAt(0).toUpperCase()}</span>`}</span><div class="conv-body"><div class="conv-name">${escapeHtml(u.username)}</div><div class="conv-preview">${I18n.t('messenger_start_dm') || 'Написать'}</div></div>`;
+          div.addEventListener('click', async () => {
+            try {
+              const resp = await window.API.Rooms.createRoom({ type: 'dm', memberIds: [u.id] });
+              if (resp.success && resp.room) { await refreshRooms(); openRoom(resp.room); }
+            } catch (err) { alert('Ошибка: ' + err.message); }
+          });
+          recommendationsList.appendChild(div);
+        });
+      } catch (e) { if (recommendationsList) recommendationsList.innerHTML = '<p class="muted">' + (I18n.t('no_recommendations_msg') || 'Нет рекомендаций') + '</p>'; }
+    }
+    if (searchInput) {
+      let searchTimeout;
+      searchInput.addEventListener('input', () => {
+        clearTimeout(searchTimeout);
+        const q = searchInput.value.trim();
+        if (!q) { loadRecommendations(); return; }
+        searchTimeout = setTimeout(async () => {
+          try {
+            const resp = await window.API.User.searchUsers(q);
+            const users = (resp.users || []).filter(u => String(u.id) !== String(me.id)).slice(0, 8);
+            if (!recommendationsList) return;
+            recommendationsList.innerHTML = '';
+            users.forEach(u => {
+              const div = document.createElement('button');
+              div.type = 'button';
+              div.className = 'messages-conv-item';
+              div.innerHTML = `<span class="conv-avatar-wrap">${u.avatar ? `<img class="conv-avatar" src="${getFileUrl(u.avatar)}" alt="">` : `<span class="conv-avatar-letter">${(u.username || '?').charAt(0).toUpperCase()}</span>`}</span><div class="conv-body"><div class="conv-name">${escapeHtml(u.username)}</div><div class="conv-preview">${escapeHtml(u.email || '')}</div></div>`;
+              div.addEventListener('click', async () => {
+                try {
+                  const r = await window.API.Rooms.createRoom({ type: 'dm', memberIds: [u.id] });
+                  if (r.success && r.room) { await refreshRooms(); openRoom(r.room); }
+                } catch (err) { alert('Ошибка: ' + err.message); }
+              });
+              recommendationsList.appendChild(div);
+            });
+            if (users.length === 0) recommendationsList.innerHTML = '<p class="muted">' + (I18n.t('no_recommendations_msg') || 'Никого не найдено') + '</p>';
+          } catch (_) {}
+        }, 300);
+      });
+    }
+    await refreshRooms();
+    await loadRecommendations();
+  },
+
   refreshCurrentPage: null
 };
 
+function setupMobileNav() {
+  const hamburger = document.getElementById('navHamburger');
+  const overlay = document.getElementById('navOverlay');
+  if (!hamburger || !overlay) return;
+  function open() {
+    hamburger.setAttribute('aria-expanded', 'true');
+    overlay.classList.add('visible');
+    overlay.setAttribute('aria-hidden', 'false');
+  }
+  function close() {
+    hamburger.setAttribute('aria-expanded', 'false');
+    overlay.classList.remove('visible');
+    overlay.setAttribute('aria-hidden', 'true');
+  }
+  hamburger.addEventListener('click', () => {
+    if (overlay.classList.contains('visible')) close();
+    else open();
+  });
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) close();
+  });
+  overlay.querySelectorAll('.nav-link').forEach(link => {
+    link.addEventListener('click', close);
+  });
+  const langMobile = document.getElementById('languageSelectMobile');
+  const langMain = document.getElementById('languageSelect');
+  if (langMobile && langMain) {
+    langMobile.value = langMain.value;
+    langMobile.addEventListener('change', () => {
+      langMain.value = langMobile.value;
+      if (window.I18n && I18n.setLanguage) I18n.setLanguage(langMobile.value);
+      if (I18n.apply) I18n.apply(document);
+    });
+  }
+  const themeMobile = document.getElementById('themeToggleMobile');
+  const themeMain = document.getElementById('themeToggle');
+  if (themeMobile && themeMain) {
+    themeMobile.addEventListener('click', () => { themeMain.click(); });
+  }
+  const logoutMobile = document.getElementById('logoutBtnMobile');
+  const logoutMain = document.getElementById('logoutBtn');
+  if (logoutMobile && logoutMain) {
+    logoutMobile.addEventListener('click', () => { logoutMain.click(); });
+  }
+}
+
 window.App = App;
 document.addEventListener('DOMContentLoaded', () => {
+  setupMobileNav();
   const themeBtn = document.getElementById('themeToggle');
   if (themeBtn) {
     themeBtn.addEventListener('click', () => {

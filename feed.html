@@ -31,7 +31,22 @@
         <button type="button" id="themeToggle" class="theme-toggle" aria-label="Theme">🌓 <span id="themeToggleLabel">Dark</span></button>
         <button id="logoutBtn" class="btn ghost" data-i18n="nav_logout">Выйти</button>
       </nav>
+      <button type="button" class="nav-hamburger" id="navHamburger" aria-label="Menu" aria-expanded="false"><span></span><span></span><span></span></button>
     </header>
+    <div class="nav-overlay" id="navOverlay" aria-hidden="true">
+      <nav class="nav nav-overlay-nav">
+        <a href="feed.html" class="nav-link nav-link-feed active" data-i18n="nav_feed">Лента</a>
+        <a href="messages.html" class="nav-link" data-i18n="nav_messages">Сообщения</a>
+        <a href="profile.html" class="nav-link" data-i18n="nav_profile">Профиль</a>
+        <select id="languageSelectMobile" class="language-select">
+          <option value="cs" data-i18n="lang_cs">Čeština</option>
+          <option value="ru" data-i18n="lang_ru">Русский</option>
+          <option value="en" data-i18n="lang_en">English</option>
+        </select>
+        <button type="button" id="themeToggleMobile" class="theme-toggle" aria-label="Theme">🌓 <span id="themeToggleLabelMobile">Dark</span></button>
+        <button id="logoutBtnMobile" class="btn ghost" data-i18n="nav_logout">Выйти</button>
+      </nav>
+    </div>
 
     <main class="layout-two-columns">
       <section class="column-main column-main-feed">
@@ -77,14 +92,21 @@
                 <label class="mood-option"><input type="radio" name="postMood" value="dark"> 💀 Dark</label>
               </div>
             </div>
+            <div class="form-group">
+              <label class="thread-anonymous-label">
+                <input type="checkbox" id="postAnonymous" name="postAnonymous" value="1">
+                <span data-i18n="post_anonymous">Анонимно</span>
+              </label>
+            </div>
             <button type="submit" class="btn primary" data-i18n="create_post_button">Опубликовать</button>
           </form>
         </div>
 
         <div class="card">
           <h2 data-i18n="feed_header">Лента</h2>
-          <div id="postsContainer" class="posts-list">
-            <!-- Посты ленты будут отрисовываться здесь через JS -->
+          <div class="feed-preset-indicator" id="feedPresetIndicator"></div>
+          <div class="feed-swipe-area" id="feedSwipeArea">
+            <div id="postsContainer" class="posts-list"></div>
           </div>
         </div>
       </section>
@@ -97,45 +119,18 @@
           </h3>
           <div id="recommendationsCardBody" class="card-collapse-body">
             <h4 class="card-collapse-head sub" style="margin-top: 0; font-size: 0.95rem;">
-              <span data-i18n="rec_settings_title">Recommendation Settings</span>
+              <span data-i18n="rec_settings_title">Настройки рекомендаций</span>
               <button type="button" class="card-collapse-btn" aria-expanded="true" data-collapse-target="recSettingsBody"></button>
             </h4>
             <div id="recSettingsBody" class="card-collapse-body">
-              <div id="recSettingsPanel" class="rec-settings-panel">
-                <div class="form-group">
-                  <label>followersWeight: <span id="w_followersWeight_val">1</span></label>
-                  <input id="w_followersWeight" type="range" min="0" max="10" step="0.1" value="1">
-                </div>
-                <div class="form-group">
-                  <label>commonFollowingWeight: <span id="w_commonFollowingWeight_val">2</span></label>
-                  <input id="w_commonFollowingWeight" type="range" min="0" max="10" step="0.1" value="2">
-                </div>
-                <div class="form-group">
-                  <label>postsWeight: <span id="w_postsWeight_val">0.5</span></label>
-                  <input id="w_postsWeight" type="range" min="0" max="10" step="0.1" value="0.5">
-                </div>
-                <div class="form-group">
-                  <label>likesWeight: <span id="w_likesWeight_val">1</span></label>
-                  <input id="w_likesWeight" type="range" min="0" max="10" step="0.1" value="1">
-                </div>
-                <div class="form-group">
-                  <label>commentsWeight: <span id="w_commentsWeight_val">2</span></label>
-                  <input id="w_commentsWeight" type="range" min="0" max="10" step="0.1" value="2">
-                </div>
-                <div class="form-group">
-                  <label>repostsWeight: <span id="w_repostsWeight_val">3</span></label>
-                  <input id="w_repostsWeight" type="range" min="0" max="10" step="0.1" value="3">
-                </div>
-                <div class="form-group">
-                  <label>attentionWeight: <span id="w_attentionWeight_val">0.5</span></label>
-                  <input id="w_attentionWeight" type="range" min="0" max="10" step="0.1" value="0.5">
-                </div>
-                <div class="form-group" style="margin-bottom: 0;">
-                  <label>freshnessWeight: <span id="w_freshnessWeight_val">2</span></label>
-                  <input id="w_freshnessWeight" type="range" min="0" max="10" step="0.1" value="2">
-                </div>
-                <button id="recSettingsReset" type="button" class="btn ghost small" data-i18n="rec_reset">Сбросить настройки</button>
+              <div class="rec-presets-row">
+                <label class="rec-presets-label" data-i18n="rec_presets">Пресеты:</label>
+                <div id="recPresets" class="rec-presets-btns"></div>
               </div>
+              <div id="recSettingsPanel" class="rec-settings-panel">
+                <!-- Sliders filled by JS -->
+              </div>
+              <button id="recSettingsReset" type="button" class="btn ghost small" data-i18n="rec_reset">Сбросить</button>
             </div>
             <div id="recommendationsContainer" class="users-list" style="margin-top: 12px;">
               <!-- Рекомендованные пользователи -->
@@ -171,6 +166,19 @@
         </div>
       </aside>
     </main>
+
+    <!-- Onboarding overlay for new users -->
+    <div id="onboardingOverlay" class="onboarding-overlay hidden" aria-hidden="true">
+      <div class="onboarding-backdrop"></div>
+      <div class="onboarding-step card">
+        <h3 data-i18n="onboard_title">Добро пожаловать!</h3>
+        <p id="onboardStepText" data-i18n="onboard_step_feed">Здесь ваша лента — новые истории и посты.</p>
+        <div class="onboarding-controls">
+          <button id="onboardSkip" class="btn ghost small" type="button" data-i18n="onboard_skip">Пропустить</button>
+          <button id="onboardNext" class="btn primary small" type="button" data-i18n="onboard_next">Далее</button>
+        </div>
+      </div>
+    </div>
 
     <footer class="app-footer">
       <p data-i18n="feed_footer">Все данные хранятся на сервере в SQL базе с шифрованием.</p>
