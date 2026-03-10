@@ -720,7 +720,7 @@ const App = {
       });
     }
 
-    // Загрузка фото профиля
+    // Profile photo upload
     const avatarInput = document.getElementById('avatarInput');
     if (avatarInput) {
       avatarInput.addEventListener('change', () => {

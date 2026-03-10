@@ -51,13 +51,13 @@ async function apiRequest(endpoint, options = {}) {
     try {
       data = JSON.parse(text);
     } catch (e) {
-      throw new Error('Сервер вернул неверный JSON. Проверьте, что бэкенд запущен (python app.py) и страница открыта с того же хоста.');
+      throw new Error('Server returned invalid JSON. Ensure the backend is running (python app.py) and the page is opened from the same host.');
     }
   } else {
     if (response.ok) {
-      throw new Error('Сервер вернул не JSON. Проверьте URL и что бэкенд запущен.');
+      throw new Error('Server did not return JSON. Check URL and ensure the backend is running.');
     }
-    throw new Error(`Ошибка ${response.status}. Сервер вернул HTML вместо JSON. Запустите бэкенд: python app.py и откройте страницу через тот же адрес (например http://127.0.0.1:5000).`);
+    throw new Error(`Error ${response.status}. Server returned HTML instead of JSON. Run the backend: python app.py and open the page from the same origin (e.g. http://127.0.0.1:5000).`);
   }
 
   if (!response.ok) {

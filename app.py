@@ -68,10 +68,10 @@ def register():
     password = data.get('password', '')
     
     if not username or not email or not password:
-        return jsonify({'success': False, 'message': 'Заполните все поля'}), 400
+        return jsonify({'success': False, 'message': 'Fill in all fields'}), 400
     
     if len(password) < 8:
-        return jsonify({'success': False, 'message': 'Пароль должен быть не менее 8 символов'}), 400
+        return jsonify({'success': False, 'message': 'Password must be at least 8 characters'}), 400
     
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -79,7 +79,7 @@ def register():
     cursor.execute('SELECT id FROM Users WHERE username = ? OR email = ?', (username, email))
     if cursor.fetchone():
         conn.close()
-        return jsonify({'success': False, 'message': 'Пользователь с таким username или email уже существует'}), 400
+        return jsonify({'success': False, 'message': 'User with this username or email already exists'}), 400
     
     password_hash = hash_password(password)
     created_at = datetime.now().isoformat()
@@ -100,7 +100,7 @@ def register():
     
     return jsonify({
         'success': True,
-        'message': 'Регистрация успешна',
+        'message': 'Registration successful',
         'user': dict(user)
     }), 201
 
@@ -112,7 +112,7 @@ def login():
     password = data.get('password', '')
     
     if not identifier or not password:
-        return jsonify({'success': False, 'message': 'Заполните все поля'}), 400
+        return jsonify({'success': False, 'message': 'Fill in all fields'}), 400
     
     password_hash = hash_password(password)
     conn = get_db_connection()
@@ -127,13 +127,13 @@ def login():
     conn.close()
     
     if not user:
-        return jsonify({'success': False, 'message': 'Неверный логин или пароль'}), 401
+        return jsonify({'success': False, 'message': 'Invalid login or password'}), 401
     
     session['user_id'] = user['id']
     
     return jsonify({
         'success': True,
-        'message': 'Вход выполнен успешно',
+        'message': 'Login successful',
         'user': dict(user)
     })
 
@@ -141,7 +141,7 @@ def login():
 @app.route('/api/logout', methods=['POST'])
 def logout():
     session.pop('user_id', None)
-    return jsonify({'success': True, 'message': 'Выход выполнен'})
+    return jsonify({'success': True, 'message': 'Logged out'})
 
 
 @app.route('/api/current-user', methods=['GET'])
@@ -180,7 +180,7 @@ def get_user(user_id):
     user = cursor.fetchone()
     if not user:
         conn.close()
-        return jsonify({'success': False, 'message': 'Пользователь не найден'}), 404
+        return jsonify({'success': False, 'message': 'User not found'}), 404
     
     user = dict(user)
     cursor.execute('SELECT COUNT(*) as c FROM Likes l JOIN Posts p ON l.postId = p.id WHERE p.userId = ?', (user_id,))
@@ -325,7 +325,7 @@ def get_posts():
 def create_post():
     user_id = require_auth()
     if not user_id:
-        return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
+        return jsonify({'success': False, 'message': 'Authentication required'}), 401
     
     content = request.form.get('content', '').strip()
     file = request.files.get('file')
@@ -335,7 +335,7 @@ def create_post():
     anonymous = request.form.get('anonymous', '').strip().lower() in ('1', 'true', 'yes', 'on')
 
     if not content and not file:
-        return jsonify({'success': False, 'message': 'Пост не может быть пустым'}), 400
+        return jsonify({'success': False, 'message': 'Post cannot be empty'}), 400
 
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -387,7 +387,7 @@ def create_post():
     
     return jsonify({
         'success': True,
-        'message': 'Пост создан',
+        'message': 'Post created',
         'post': post
     }), 201
 
@@ -404,7 +404,7 @@ def get_post(post_id):
     row = cursor.fetchone()
     if not row:
         conn.close()
-        return jsonify({'success': False, 'message': 'Пост не найден'}), 404
+        return jsonify({'success': False, 'message': 'Post not found'}), 404
     post = dict(row)
     post['isAnonymous'] = bool(post.get('isAnonymous', 0))
     post['anonymousColor'] = get_anonymous_color(post['id']) if post['isAnonymous'] else None
@@ -441,7 +441,7 @@ def get_post(post_id):
 def delete_post(post_id):
     user_id = require_auth()
     if not user_id:
-        return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
+        return jsonify({'success': False, 'message': 'Authentication required'}), 401
     
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -451,11 +451,11 @@ def delete_post(post_id):
     
     if not post:
         conn.close()
-        return jsonify({'success': False, 'message': 'Пост не найден'}), 404
+        return jsonify({'success': False, 'message': 'Post not found'}), 404
     
     if post['userId'] != user_id:
         conn.close()
-        return jsonify({'success': False, 'message': 'Нет прав на удаление'}), 403
+        return jsonify({'success': False, 'message': 'No permission to delete'}), 403
     
     cursor.execute('SELECT filePath FROM Files WHERE postId = ?', (post_id,))
     files = cursor.fetchall()
@@ -466,14 +466,14 @@ def delete_post(post_id):
     conn.commit()
     conn.close()
     
-    return jsonify({'success': True, 'message': 'Пост удален'})
+    return jsonify({'success': True, 'message': 'Post deleted'})
 
 
 @app.route('/api/posts/<int:post_id>/like', methods=['POST'])
 def toggle_like(post_id):
     user_id = require_auth()
     if not user_id:
-        return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
+        return jsonify({'success': False, 'message': 'Authentication required'}), 401
 
     data = (request.get_json() or {})
     reaction_type = (data.get('reactionType') or 'heart').strip().lower()
@@ -486,7 +486,7 @@ def toggle_like(post_id):
     cursor.execute('SELECT id FROM Posts WHERE id = ?', (post_id,))
     if not cursor.fetchone():
         conn.close()
-        return jsonify({'success': False, 'message': 'Пост не найден'}), 404
+        return jsonify({'success': False, 'message': 'Post not found'}), 404
 
     cursor.execute('SELECT id, reactionType FROM Likes WHERE postId = ? AND userId = ?', (post_id, user_id))
     like = cursor.fetchone()
@@ -598,14 +598,14 @@ def get_comments(post_id):
 def create_comment(post_id):
     user_id = require_auth()
     if not user_id:
-        return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
+        return jsonify({'success': False, 'message': 'Authentication required'}), 401
     
     data = request.get_json()
     content = data.get('content', '').strip()
     anonymous = data.get('anonymous', False) in (True, 'true', 1, '1')
 
     if not content:
-        return jsonify({'success': False, 'message': 'Комментарий не может быть пустым'}), 400
+        return jsonify({'success': False, 'message': 'Comment cannot be empty'}), 400
     
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -613,7 +613,7 @@ def create_comment(post_id):
     cursor.execute('SELECT id FROM Posts WHERE id = ?', (post_id,))
     if not cursor.fetchone():
         conn.close()
-        return jsonify({'success': False, 'message': 'Пост не найден'}), 404
+        return jsonify({'success': False, 'message': 'Post not found'}), 404
     
     created_at = datetime.now().isoformat()
     cursor.execute('''
@@ -653,7 +653,7 @@ def create_comment(post_id):
     
     return jsonify({
         'success': True,
-        'message': 'Комментарий добавлен',
+        'message': 'Comment added',
         'comment': comment
     }), 201
 
@@ -662,7 +662,7 @@ def create_comment(post_id):
 def toggle_comment_like(comment_id):
     user_id = require_auth()
     if not user_id:
-        return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
+        return jsonify({'success': False, 'message': 'Authentication required'}), 401
 
     data = (request.get_json() or {})
     reaction_type = (data.get('reactionType') or 'heart').strip().lower()
@@ -674,7 +674,7 @@ def toggle_comment_like(comment_id):
     cursor.execute('SELECT id FROM Comments WHERE id = ?', (comment_id,))
     if not cursor.fetchone():
         conn.close()
-        return jsonify({'success': False, 'message': 'Комментарий не найден'}), 404
+        return jsonify({'success': False, 'message': 'Comment not found'}), 404
 
     cursor.execute('SELECT id, reactionType FROM CommentLikes WHERE commentId = ? AND userId = ?', (comment_id, user_id))
     like = cursor.fetchone()
@@ -723,12 +723,12 @@ def toggle_comment_like(comment_id):
 def update_comment(comment_id):
     user_id = require_auth()
     if not user_id:
-        return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
+        return jsonify({'success': False, 'message': 'Authentication required'}), 401
 
     data = request.get_json()
     content = (data.get('content') or '').strip()
     if not content:
-        return jsonify({'success': False, 'message': 'Комментарий не может быть пустым'}), 400
+        return jsonify({'success': False, 'message': 'Comment cannot be empty'}), 400
 
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -736,10 +736,10 @@ def update_comment(comment_id):
     row = cursor.fetchone()
     if not row:
         conn.close()
-        return jsonify({'success': False, 'message': 'Комментарий не найден'}), 404
+        return jsonify({'success': False, 'message': 'Comment not found'}), 404
     if row['userId'] != user_id:
         conn.close()
-        return jsonify({'success': False, 'message': 'Нельзя редактировать чужой комментарий'}), 403
+        return jsonify({'success': False, 'message': 'Cannot edit another user\'s comment'}), 403
 
     cursor.execute('UPDATE Comments SET content = ? WHERE id = ?', (content, comment_id))
     cursor.execute('''
@@ -770,7 +770,7 @@ def update_comment(comment_id):
 def delete_comment(comment_id):
     user_id = require_auth()
     if not user_id:
-        return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
+        return jsonify({'success': False, 'message': 'Authentication required'}), 401
 
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -778,23 +778,23 @@ def delete_comment(comment_id):
     row = cursor.fetchone()
     if not row:
         conn.close()
-        return jsonify({'success': False, 'message': 'Комментарий не найден'}), 404
+        return jsonify({'success': False, 'message': 'Comment not found'}), 404
     if row['userId'] != user_id:
         conn.close()
-        return jsonify({'success': False, 'message': 'Нельзя удалить чужой комментарий'}), 403
+        return jsonify({'success': False, 'message': 'Cannot delete another user\'s comment'}), 403
 
     cursor.execute('DELETE FROM CommentLikes WHERE commentId = ?', (comment_id,))
     cursor.execute('DELETE FROM Comments WHERE id = ?', (comment_id,))
     conn.commit()
     conn.close()
-    return jsonify({'success': True, 'message': 'Комментарий удалён', 'postId': row['postId']})
+    return jsonify({'success': True, 'message': 'Comment deleted', 'postId': row['postId']})
 
 
 @app.route('/api/posts/<int:post_id>/repost', methods=['POST'])
 def create_repost(post_id):
     user_id = require_auth()
     if not user_id:
-        return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
+        return jsonify({'success': False, 'message': 'Authentication required'}), 401
     
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -802,7 +802,7 @@ def create_repost(post_id):
     cursor.execute('SELECT id FROM Posts WHERE id = ?', (post_id,))
     if not cursor.fetchone():
         conn.close()
-        return jsonify({'success': False, 'message': 'Пост не найден'}), 404
+        return jsonify({'success': False, 'message': 'Post not found'}), 404
     
     cursor.execute('SELECT id FROM Reposts WHERE originalPostId = ? AND userId = ?', (post_id, user_id))
     existing = cursor.fetchone()
@@ -814,7 +814,7 @@ def create_repost(post_id):
         conn.close()
         return jsonify({
             'success': True,
-            'message': 'Репост отменён',
+            'message': 'Repost cancelled',
             'reposted': False,
             'repostsCount': count
         })
@@ -840,7 +840,7 @@ def create_repost(post_id):
     
     return jsonify({
         'success': True,
-        'message': 'Репост создан',
+        'message': 'Repost created',
         'reposted': True,
         'repost': {'id': repost_id, 'originalPostId': post_id, 'userId': user_id, 'createdAt': created_at},
         'repostsCount': count
@@ -851,10 +851,10 @@ def create_repost(post_id):
 def follow_user(user_id):
     current_user_id = require_auth()
     if not current_user_id:
-        return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
+        return jsonify({'success': False, 'message': 'Authentication required'}), 401
     
     if current_user_id == user_id:
-        return jsonify({'success': False, 'message': 'Нельзя подписаться на себя'}), 400
+        return jsonify({'success': False, 'message': 'Cannot follow yourself'}), 400
     
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -862,7 +862,7 @@ def follow_user(user_id):
     cursor.execute('SELECT id FROM Users WHERE id = ?', (user_id,))
     if not cursor.fetchone():
         conn.close()
-        return jsonify({'success': False, 'message': 'Пользователь не найден'}), 404
+        return jsonify({'success': False, 'message': 'User not found'}), 404
     
     cursor.execute('SELECT * FROM Followers WHERE followerId = ? AND followingId = ?', 
                    (current_user_id, user_id))
@@ -930,7 +930,7 @@ def get_following(user_id):
 def get_messages():
     current_user_id = require_auth()
     if not current_user_id:
-        return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
+        return jsonify({'success': False, 'message': 'Authentication required'}), 401
     update_user_last_active(current_user_id)
 
     try:
@@ -944,7 +944,7 @@ def get_messages():
     cursor.execute('SELECT id FROM Users WHERE id = ?', (other_id,))
     if not cursor.fetchone():
         conn.close()
-        return jsonify({'success': False, 'message': 'Пользователь не найден'}), 404
+        return jsonify({'success': False, 'message': 'User not found'}), 404
 
     cursor.execute('''
         SELECT m.id, m.fromUserId, m.toUserId, m.content, m.createdAt,
@@ -968,7 +968,7 @@ def get_messages():
 def send_message():
     from_user_id = require_auth()
     if not from_user_id:
-        return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
+        return jsonify({'success': False, 'message': 'Authentication required'}), 401
     update_user_last_active(from_user_id)
 
     data = request.get_json() or {}
@@ -978,13 +978,13 @@ def send_message():
     try:
         to_user_id = int(to_user_id)
     except (TypeError, ValueError):
-        return jsonify({'success': False, 'message': 'Некорректный получатель'}), 400
+        return jsonify({'success': False, 'message': 'Invalid recipient'}), 400
 
     if not content:
-        return jsonify({'success': False, 'message': 'Сообщение не может быть пустым'}), 400
+        return jsonify({'success': False, 'message': 'Message cannot be empty'}), 400
 
     if to_user_id == from_user_id:
-        return jsonify({'success': False, 'message': 'Нельзя писать самому себе'}), 400
+        return jsonify({'success': False, 'message': 'Cannot message yourself'}), 400
 
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -992,7 +992,7 @@ def send_message():
     cursor.execute('SELECT id FROM Users WHERE id = ?', (to_user_id,))
     if not cursor.fetchone():
         conn.close()
-        return jsonify({'success': False, 'message': 'Пользователь не найден'}), 404
+        return jsonify({'success': False, 'message': 'User not found'}), 404
 
     created_at = datetime.now().isoformat()
     cursor.execute('''
@@ -1023,7 +1023,7 @@ def send_message():
 def get_conversations():
     current_user_id = require_auth()
     if not current_user_id:
-        return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
+        return jsonify({'success': False, 'message': 'Authentication required'}), 401
     update_user_last_active(current_user_id)
 
     conn = get_db_connection()
@@ -1110,7 +1110,7 @@ def _is_user_muted(cursor, room_id, user_id):
 def get_rooms():
     current_user_id = require_auth()
     if not current_user_id:
-        return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
+        return jsonify({'success': False, 'message': 'Authentication required'}), 401
     update_user_last_active(current_user_id)
 
     conn = get_db_connection()
@@ -1167,7 +1167,7 @@ def get_rooms():
 def create_room():
     current_user_id = require_auth()
     if not current_user_id:
-        return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
+        return jsonify({'success': False, 'message': 'Authentication required'}), 401
     update_user_last_active(current_user_id)
 
     data = request.get_json() or {}
@@ -1256,7 +1256,7 @@ def create_room():
 def get_room(room_id):
     current_user_id = require_auth()
     if not current_user_id:
-        return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
+        return jsonify({'success': False, 'message': 'Authentication required'}), 401
 
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -1264,14 +1264,14 @@ def get_room(room_id):
     row = cursor.fetchone()
     if not row:
         conn.close()
-        return jsonify({'success': False, 'message': 'Комната не найдена'}), 404
+        return jsonify({'success': False, 'message': 'Room not found'}), 404
     room = dict(row)
     if _room_expired(room.get('expiresAt')):
         conn.close()
-        return jsonify({'success': False, 'message': 'Чат истёк'}), 410
+        return jsonify({'success': False, 'message': 'Chat expired'}), 410
     if not _ensure_room_member(cursor, room_id, current_user_id):
         conn.close()
-        return jsonify({'success': False, 'message': 'Нет доступа'}), 403
+        return jsonify({'success': False, 'message': 'Access denied'}), 403
     cursor.execute('SELECT COUNT(*) AS c FROM RoomMessage WHERE roomId = ?', (room_id,))
     room['messageCount'] = cursor.fetchone()['c']
     cursor.execute('SELECT userId FROM ChatRoomMember WHERE roomId = ?', (room_id,))
@@ -1284,7 +1284,7 @@ def get_room(room_id):
 def get_room_messages(room_id):
     current_user_id = require_auth()
     if not current_user_id:
-        return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
+        return jsonify({'success': False, 'message': 'Authentication required'}), 401
 
     limit = min(int(request.args.get('limit', 50)), 100)
     offset = int(request.args.get('offset', 0))
@@ -1295,10 +1295,10 @@ def get_room_messages(room_id):
     cursor.execute('SELECT 1 FROM ChatRoom WHERE id = ?', (room_id,))
     if not cursor.fetchone():
         conn.close()
-        return jsonify({'success': False, 'message': 'Комната не найдена'}), 404
+        return jsonify({'success': False, 'message': 'Room not found'}), 404
     if not _ensure_room_member(cursor, room_id, current_user_id):
         conn.close()
-        return jsonify({'success': False, 'message': 'Нет доступа'}), 403
+        return jsonify({'success': False, 'message': 'Access denied'}), 403
 
     if after_id:
         cursor.execute('''
@@ -1346,7 +1346,7 @@ def get_room_messages(room_id):
 def send_room_message(room_id):
     current_user_id = require_auth()
     if not current_user_id:
-        return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
+        return jsonify({'success': False, 'message': 'Authentication required'}), 401
     update_user_last_active(current_user_id)
 
     data = request.get_json() or {}
@@ -1355,7 +1355,7 @@ def send_room_message(room_id):
     reply_to_id = data.get('replyToId', type=int)
 
     if not content:
-        return jsonify({'success': False, 'message': 'Сообщение не может быть пустым'}), 400
+        return jsonify({'success': False, 'message': 'Message cannot be empty'}), 400
 
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -1363,19 +1363,19 @@ def send_room_message(room_id):
     row = cursor.fetchone()
     if not row:
         conn.close()
-        return jsonify({'success': False, 'message': 'Комната не найдена'}), 404
+        return jsonify({'success': False, 'message': 'Room not found'}), 404
     if _room_expired(row['expiresAt']):
         conn.close()
-        return jsonify({'success': False, 'message': 'Чат истёк'}), 410
+        return jsonify({'success': False, 'message': 'Chat expired'}), 410
     if not _ensure_room_member(cursor, room_id, current_user_id):
         conn.close()
-        return jsonify({'success': False, 'message': 'Нет доступа'}), 403
+        return jsonify({'success': False, 'message': 'Access denied'}), 403
 
     if _is_user_muted(cursor, room_id, current_user_id):
         conn.close()
         cursor.execute('SELECT mutedUntil FROM ChatRoomMute WHERE roomId = ? AND userId = ?', (room_id, current_user_id))
         r = cursor.fetchone()
-        return jsonify({'success': False, 'message': 'Вы замучены', 'mutedUntil': r['mutedUntil'] if r else None}), 403
+        return jsonify({'success': False, 'message': 'You are muted', 'mutedUntil': r['mutedUntil'] if r else None}), 403
 
     created_at = datetime.now().isoformat()
     cursor.execute('''
@@ -1409,7 +1409,7 @@ def send_room_message(room_id):
 def toggle_room_message_reaction(room_id, message_id):
     current_user_id = require_auth()
     if not current_user_id:
-        return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
+        return jsonify({'success': False, 'message': 'Authentication required'}), 401
 
     data = request.get_json() or {}
     emoji = (data.get('emoji') or 'heart').strip()[:20]
@@ -1419,10 +1419,10 @@ def toggle_room_message_reaction(room_id, message_id):
     cursor.execute('SELECT id FROM RoomMessage WHERE id = ? AND roomId = ?', (message_id, room_id))
     if not cursor.fetchone():
         conn.close()
-        return jsonify({'success': False, 'message': 'Сообщение не найдено'}), 404
+        return jsonify({'success': False, 'message': 'Message not found'}), 404
     if not _ensure_room_member(cursor, room_id, current_user_id):
         conn.close()
-        return jsonify({'success': False, 'message': 'Нет доступа'}), 403
+        return jsonify({'success': False, 'message': 'Access denied'}), 403
 
     cursor.execute('SELECT 1 FROM RoomMessageReaction WHERE messageId = ? AND userId = ?', (message_id, current_user_id))
     exists = cursor.fetchone()
@@ -1443,17 +1443,17 @@ def toggle_room_message_reaction(room_id, message_id):
 def get_room_typing(room_id):
     current_user_id = require_auth()
     if not current_user_id:
-        return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
+        return jsonify({'success': False, 'message': 'Authentication required'}), 401
     # Проверка доступа к комнате через БД
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('SELECT 1 FROM ChatRoom WHERE id = ?', (room_id,))
     if not cursor.fetchone():
         conn.close()
-        return jsonify({'success': False, 'message': 'Комната не найдена'}), 404
+        return jsonify({'success': False, 'message': 'Room not found'}), 404
     if not _ensure_room_member(cursor, room_id, current_user_id):
         conn.close()
-        return jsonify({'success': False, 'message': 'Нет доступа'}), 403
+        return jsonify({'success': False, 'message': 'Access denied'}), 403
     conn.close()
 
     now_ts = datetime.now().timestamp()
@@ -1471,7 +1471,7 @@ def get_room_typing(room_id):
 def set_room_typing(room_id):
     current_user_id = require_auth()
     if not current_user_id:
-        return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
+        return jsonify({'success': False, 'message': 'Authentication required'}), 401
     data = request.get_json() or {}
     active = data.get('active', True)
     conn = get_db_connection()
@@ -1479,10 +1479,10 @@ def set_room_typing(room_id):
     cursor.execute('SELECT 1 FROM ChatRoom WHERE id = ?', (room_id,))
     if not cursor.fetchone():
         conn.close()
-        return jsonify({'success': False, 'message': 'Комната не найдена'}), 404
+        return jsonify({'success': False, 'message': 'Room not found'}), 404
     if not _ensure_room_member(cursor, room_id, current_user_id):
         conn.close()
-        return jsonify({'success': False, 'message': 'Нет доступа'}), 403
+        return jsonify({'success': False, 'message': 'Access denied'}), 403
     conn.close()
     if room_id not in _room_typing:
         _room_typing[room_id] = {}
@@ -1497,20 +1497,20 @@ def set_room_typing(room_id):
 def join_room(room_id):
     current_user_id = require_auth()
     if not current_user_id:
-        return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
+        return jsonify({'success': False, 'message': 'Authentication required'}), 401
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('SELECT id, isPublic, expiresAt FROM ChatRoom WHERE id = ?', (room_id,))
     row = cursor.fetchone()
     if not row:
         conn.close()
-        return jsonify({'success': False, 'message': 'Комната не найдена'}), 404
+        return jsonify({'success': False, 'message': 'Room not found'}), 404
     if not row['isPublic']:
         conn.close()
-        return jsonify({'success': False, 'message': 'Комната приватная'}), 403
+        return jsonify({'success': False, 'message': 'Room is private'}), 403
     if _room_expired(row.get('expiresAt')):
         conn.close()
-        return jsonify({'success': False, 'message': 'Чат истёк'}), 410
+        return jsonify({'success': False, 'message': 'Chat expired'}), 410
     created_at = datetime.now().isoformat()
     cursor.execute('INSERT OR IGNORE INTO ChatRoomMember (roomId, userId, joinedAt) VALUES (?, ?, ?)',
                    (room_id, current_user_id, created_at))
@@ -1523,12 +1523,12 @@ def join_room(room_id):
 def get_room_mute_status(room_id):
     current_user_id = require_auth()
     if not current_user_id:
-        return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
+        return jsonify({'success': False, 'message': 'Authentication required'}), 401
     conn = get_db_connection()
     cursor = conn.cursor()
     if not _ensure_room_member(cursor, room_id, current_user_id):
         conn.close()
-        return jsonify({'success': False, 'message': 'Нет доступа'}), 403
+        return jsonify({'success': False, 'message': 'Access denied'}), 403
     muted = _is_user_muted(cursor, room_id, current_user_id)
     muted_until = None
     if muted:
@@ -1544,12 +1544,12 @@ def get_room_mute_status(room_id):
 def mute_room_user(room_id):
     current_user_id = require_auth()
     if not current_user_id:
-        return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
+        return jsonify({'success': False, 'message': 'Authentication required'}), 401
     data = request.get_json() or {}
     target_user_id = data.get('userId', type=int)
     minutes = data.get('minutes', 60)
     if not target_user_id:
-        return jsonify({'success': False, 'message': 'Укажите userId'}), 400
+        return jsonify({'success': False, 'message': 'Specify userId'}), 400
     try:
         minutes = min(max(int(minutes), 1), 10080)  # 1 min to 7 days
     except (TypeError, ValueError):
@@ -1558,13 +1558,13 @@ def mute_room_user(room_id):
     cursor = conn.cursor()
     if not _ensure_room_member(cursor, room_id, current_user_id):
         conn.close()
-        return jsonify({'success': False, 'message': 'Нет доступа'}), 403
+        return jsonify({'success': False, 'message': 'Access denied'}), 403
     if not _is_room_admin(cursor, room_id, current_user_id):
         conn.close()
-        return jsonify({'success': False, 'message': 'Только админ или создатель может замутить'}), 403
+        return jsonify({'success': False, 'message': 'Only admin or creator can mute'}), 403
     if not _ensure_room_member(cursor, room_id, target_user_id):
         conn.close()
-        return jsonify({'success': False, 'message': 'Пользователь не в комнате'}), 400
+        return jsonify({'success': False, 'message': 'User is not in the room'}), 400
     from datetime import timedelta
     muted_until = (datetime.now() + timedelta(minutes=minutes)).isoformat()
     created_at = datetime.now().isoformat()
@@ -1579,12 +1579,12 @@ def mute_room_user(room_id):
 def get_room_members(room_id):
     current_user_id = require_auth()
     if not current_user_id:
-        return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
+        return jsonify({'success': False, 'message': 'Authentication required'}), 401
     conn = get_db_connection()
     cursor = conn.cursor()
     if not _ensure_room_member(cursor, room_id, current_user_id):
         conn.close()
-        return jsonify({'success': False, 'message': 'Нет доступа'}), 403
+        return jsonify({'success': False, 'message': 'Access denied'}), 403
     cursor.execute('''
         SELECT m.userId, u.username, u.avatar, m.joinedAt,
                (r.createdById = m.userId OR a.userId IS NOT NULL) AS isAdmin
@@ -1605,23 +1605,23 @@ def get_room_members(room_id):
 def add_room_members(room_id):
     current_user_id = require_auth()
     if not current_user_id:
-        return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
+        return jsonify({'success': False, 'message': 'Authentication required'}), 401
     data = request.get_json() or {}
     user_ids = data.get('userIds') or []
     if not user_ids:
-        return jsonify({'success': False, 'message': 'Укажите userIds'}), 400
+        return jsonify({'success': False, 'message': 'Specify userIds'}), 400
     conn = get_db_connection()
     cursor = conn.cursor()
     if not _ensure_room_member(cursor, room_id, current_user_id):
         conn.close()
-        return jsonify({'success': False, 'message': 'Нет доступа'}), 403
+        return jsonify({'success': False, 'message': 'Access denied'}), 403
     if not _is_room_admin(cursor, room_id, current_user_id):
         conn.close()
-        return jsonify({'success': False, 'message': 'Только админ или создатель может добавлять участников'}), 403
+        return jsonify({'success': False, 'message': 'Only admin or creator can add members'}), 403
     cursor.execute('SELECT 1 FROM ChatRoom WHERE id = ?', (room_id,))
     if not cursor.fetchone():
         conn.close()
-        return jsonify({'success': False, 'message': 'Комната не найдена'}), 404
+        return jsonify({'success': False, 'message': 'Room not found'}), 404
     created_at = datetime.now().isoformat()
     added = 0
     for uid in user_ids:
@@ -1643,16 +1643,16 @@ def add_room_members(room_id):
 def remove_room_member(room_id, target_user_id):
     current_user_id = require_auth()
     if not current_user_id:
-        return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
+        return jsonify({'success': False, 'message': 'Authentication required'}), 401
     conn = get_db_connection()
     cursor = conn.cursor()
     if not _ensure_room_member(cursor, room_id, current_user_id):
         conn.close()
-        return jsonify({'success': False, 'message': 'Нет доступа'}), 403
+        return jsonify({'success': False, 'message': 'Access denied'}), 403
     can_remove = _is_room_admin(cursor, room_id, current_user_id) or target_user_id == current_user_id
     if not can_remove:
         conn.close()
-        return jsonify({'success': False, 'message': 'Нет прав на удаление'}), 403
+        return jsonify({'success': False, 'message': 'No permission to delete'}), 403
     cursor.execute('DELETE FROM ChatRoomMember WHERE roomId = ? AND userId = ?', (room_id, target_user_id))
     conn.commit()
     conn.close()
@@ -1767,7 +1767,7 @@ def get_user_stats(user_id):
 def get_user_recommendations():
     current_user_id = require_auth()
     if not current_user_id:
-        return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
+        return jsonify({'success': False, 'message': 'Authentication required'}), 401
     
     def _w(name: str, default: float) -> float:
         try:
@@ -1908,7 +1908,7 @@ def get_user_recommendations():
 def get_post_recommendations():
     current_user_id = require_auth()
     if not current_user_id:
-        return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
+        return jsonify({'success': False, 'message': 'Authentication required'}), 401
     
     def _w(name: str, default: float) -> float:
         try:
@@ -2033,7 +2033,7 @@ def get_post_recommendations():
 def update_profile():
     user_id = require_auth()
     if not user_id:
-        return jsonify({'success': False, 'message': 'Требуется авторизация'}), 401
+        return jsonify({'success': False, 'message': 'Authentication required'}), 401
     
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -2084,7 +2084,7 @@ def update_profile():
     
     return jsonify({
         'success': True,
-        'message': 'Профиль обновлен',
+        'message': 'Profile updated',
         'user': user
     })
 

@@ -67,27 +67,27 @@ const REC_WEIGHT_ICONS = {
 const REC_PRESETS = {
   latest: {
     nameKey: 'rec_preset_latest',
-    name: 'Актуальное',
+    name: 'Latest',
     weights: { freshnessWeight: 4, trendinessWeight: 1.5, likesWeight: 0.5, commentsWeight: 1, repostsWeight: 0.5, attentionWeight: 0.3, authorAffinityWeight: 0.5, threadActivityWeight: 0.5, anonymityInterestWeight: 0.3 }
   },
   popular: {
     nameKey: 'rec_preset_popular',
-    name: 'Популярное',
+    name: 'Popular',
     weights: { trendinessWeight: 4, likesWeight: 3, commentsWeight: 3, repostsWeight: 2, freshnessWeight: 1.5, attentionWeight: 0.5, authorAffinityWeight: 0.3, threadActivityWeight: 1, anonymityInterestWeight: 0.2 }
   },
   forYou: {
     nameKey: 'rec_preset_for_you',
-    name: 'Тебе понравится',
+    name: 'For You',
     weights: { authorAffinityWeight: 4, anonymityInterestWeight: 2, attentionWeight: 2, likesWeight: 1.5, commentsWeight: 1.5, freshnessWeight: 1, trendinessWeight: 1, threadActivityWeight: 1 }
   },
   anonymous: {
     nameKey: 'rec_preset_anonymous',
-    name: 'Анонимные сплетни',
+    name: 'Anonymous',
     weights: { anonymityInterestWeight: 4, threadActivityWeight: 2, commentsWeight: 2, freshnessWeight: 1, likesWeight: 0.8, trendinessWeight: 0.8, authorAffinityWeight: 0.2, attentionWeight: 0.5 }
   },
   activeThreads: {
     nameKey: 'rec_preset_active_threads',
-    name: 'Активные треды',
+    name: 'Active threads',
     weights: { threadActivityWeight: 4, commentsWeight: 3, attentionWeight: 2.5, likesWeight: 1, freshnessWeight: 1.5, trendinessWeight: 1, anonymityInterestWeight: 0.5, authorAffinityWeight: 0.5 }
   },
   combined: {
@@ -243,7 +243,7 @@ function getRandomFeedSubtitle() {
   } catch {
     // ignore
   }
-  return 'Лента постов';
+  return 'Feed';
 }
 
 function updateFeedSubtitle() {
@@ -280,7 +280,7 @@ async function getCurrentUser() {
       return currentUser;
     }
   } catch (error) {
-    console.error('Ошибка получения текущего пользователя:', error);
+    console.error('Error getting current user:', error);
   }
   return null;
 }
@@ -297,7 +297,7 @@ async function getUserById(userId) {
       return response.user;
     }
   } catch (error) {
-    console.error('Ошибка получения пользователя:', error);
+    console.error('Error getting user:', error);
   }
   return null;
 }
@@ -325,9 +325,9 @@ function runGlobalOnboarding(currentUser) {
     if (window.I18n && typeof I18n.t === 'function') {
       textEl.textContent = I18n.t(key) || textEl.textContent;
       nextBtn.textContent = index === steps.length - 1
-        ? (I18n.t('onboard_finish') || 'Готово')
-        : (I18n.t('onboard_next') || 'Далее');
-      skipBtn.textContent = I18n.t('onboard_skip') || 'Пропустить';
+        ? (I18n.t('onboard_finish') || 'Done')
+        : (I18n.t('onboard_next') || 'Next');
+      skipBtn.textContent = I18n.t('onboard_skip') || 'Skip';
     }
   }
   overlay.classList.remove('hidden');
@@ -508,7 +508,7 @@ async function renderPost(post, currentUserId) {
           <span class="post-mood" title="mood">${moodEmoji}</span>
           ${storyScore > 0 ? `<span class="post-story-score muted" style="font-size: 0.85rem;"> · Score ${storyScore}</span>` : ''}
           <div class="post-meta">${formatRelativeTime(post.createdAt)}</div>
-          ${typeof post.score === 'number' ? `<span class="post-score-badge" title="${I18n.t('rec_score') || 'Рейтинг'}">🔥</span>` : ''}
+          ${typeof post.score === 'number' ? `<span class="post-score-badge" title="${I18n.t('rec_score') || 'Rating'}">🔥</span>` : ''}
         </div>
       </div>
       ${canDelete ? `<button class="link-button danger" data-action="delete">${deleteText}</button>` : ''}
@@ -557,7 +557,7 @@ async function renderPost(post, currentUserId) {
           updateReactionCounts(response.reactionCounts, response.currentUserReaction);
         }
       } catch (error) {
-        alert('Ошибка: ' + error.message);
+        alert('Error: ' + error.message);
       }
     });
   });
@@ -576,14 +576,14 @@ async function renderPost(post, currentUserId) {
         if (repostCountEl) repostCountEl.textContent = response.repostsCount != null ? response.repostsCount : (parseInt(repostCountEl.textContent, 10) || 0) + (nowReposted ? 1 : -1);
       }
     } catch (error) {
-      alert('Ошибка: ' + error.message);
+      alert('Error: ' + error.message);
     }
   });
 
   const deleteBtn = div.querySelector('[data-action="delete"]');
   if (deleteBtn) {
     deleteBtn.addEventListener('click', async () => {
-      if (!confirm('Удалить пост?')) return;
+      if (!confirm('Delete post?')) return;
       
       try {
         const response = await window.API.Post.deletePost(post.id);
@@ -594,7 +594,7 @@ async function renderPost(post, currentUserId) {
           }
         }
       } catch (error) {
-        alert('Ошибка: ' + error.message);
+        alert('Error: ' + error.message);
       }
     });
   }
@@ -642,11 +642,11 @@ async function loadComments(postId, sort = 'latest', limit = 50, offset = 0, opt
       const avatarHtml = comment.isAnonymous && comment.anonymousColor
         ? `<span class="avatar avatar-anonymous" style="background:${comment.anonymousColor}; color:#fff; width:28px; height:28px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:0.8rem;">?</span>`
         : (comment.avatar ? `<img src="${getFileUrl(comment.avatar)}" alt="" style="width:28px; height:28px; border-radius:50%; object-fit:cover;">` : `<span class="avatar" style="width:28px; height:28px;">${(comment.username || '?').charAt(0).toUpperCase()}</span>`);
-      const replyBtnHtml = replyCallback ? `<button type="button" class="link-button comment-reply-btn" data-comment-id="${comment.id}" style="font-size: 0.8rem;">${I18n.t('comment_reply') || 'Ответить'}</button>` : '';
+      const replyBtnHtml = replyCallback ? `<button type="button" class="link-button comment-reply-btn" data-comment-id="${comment.id}" style="font-size: 0.8rem;">${I18n.t('comment_reply') || 'Reply'}</button>` : '';
       const actionsHtml = isOwn
         ? `<span class="comment-actions" style="margin-left: auto;">${replyBtnHtml}
-               <button type="button" class="link-button comment-edit-btn" data-comment-id="${comment.id}" style="font-size: 0.8rem;">${I18n.t('comment_edit') || 'Изменить'}</button>
-               <button type="button" class="link-button comment-delete-btn" data-comment-id="${comment.id}" style="font-size: 0.8rem; color: var(--danger);">${I18n.t('comment_delete') || 'Удалить'}</button>
+               <button type="button" class="link-button comment-edit-btn" data-comment-id="${comment.id}" style="font-size: 0.8rem;">${I18n.t('comment_edit') || 'Edit'}</button>
+               <button type="button" class="link-button comment-delete-btn" data-comment-id="${comment.id}" style="font-size: 0.8rem; color: var(--danger);">${I18n.t('comment_delete') || 'Delete'}</button>
              </span>`
         : `<span class="comment-actions" style="margin-left: auto;">${replyBtnHtml}</span>`;
       commentDiv.innerHTML = `
@@ -660,8 +660,8 @@ async function loadComments(postId, sort = 'latest', limit = 50, offset = 0, opt
         <div class="comment-edit-form" style="display: none; margin-top: 6px;">
           <textarea class="comment-input comment-edit-input" rows="2" style="width: 100%; margin-top: 4px; resize: vertical;"></textarea>
           <div style="margin-top: 6px;">
-            <button type="button" class="btn primary small comment-save-btn" data-comment-id="${comment.id}">${I18n.t('save') || 'Сохранить'}</button>
-            <button type="button" class="btn ghost small comment-cancel-btn" data-comment-id="${comment.id}">${I18n.t('cancel') || 'Отмена'}</button>
+            <button type="button" class="btn primary small comment-save-btn" data-comment-id="${comment.id}">${I18n.t('save') || 'Save'}</button>
+            <button type="button" class="btn ghost small comment-cancel-btn" data-comment-id="${comment.id}">${I18n.t('cancel') || 'Cancel'}</button>
           </div>
         </div>
         <div class="comment-reactions" style="display: flex; align-items: center; gap: 6px; margin-top: 6px; flex-wrap: wrap;">
@@ -709,12 +709,12 @@ async function loadComments(postId, sort = 'latest', limit = 50, offset = 0, opt
               }
             } catch (err) {
               console.error(err);
-              alert(I18n.t('error_save_comment') || 'Не удалось сохранить комментарий');
+              alert(I18n.t('error_save_comment') || 'Failed to save comment');
             }
           });
 
           deleteBtn.addEventListener('click', async () => {
-            if (!confirm(I18n.t('comment_delete_confirm') || 'Удалить комментарий?')) return;
+            if (!confirm(I18n.t('comment_delete_confirm') || 'Delete this comment?')) return;
             try {
               const resp = await window.API.Post.deleteComment(comment.id);
               if (resp.success) {
@@ -736,7 +736,7 @@ async function loadComments(postId, sort = 'latest', limit = 50, offset = 0, opt
               }
             } catch (err) {
               console.error(err);
-              alert(I18n.t('error_delete_comment') || 'Не удалось удалить комментарий');
+              alert(I18n.t('error_delete_comment') || 'Failed to delete comment');
             }
           });
         }
@@ -768,7 +768,7 @@ async function loadComments(postId, sort = 'latest', limit = 50, offset = 0, opt
     });
     return { totalCount, loaded: comments.length };
   } catch (error) {
-    console.error('Ошибка загрузки комментариев:', error);
+    console.error('Error loading comments:', error);
     return { totalCount: 0, loaded: 0 };
   }
 }
@@ -798,7 +798,7 @@ const App = {
           usersCache.clear();
           window.location.href = 'index.html';
         } catch (error) {
-          console.error('Ошибка выхода:', error);
+          console.error('Error logging out:', error);
           window.location.href = 'index.html';
         }
       });
@@ -833,14 +833,14 @@ const App = {
     const threadShareWrap = document.getElementById('threadShareWrap');
 
     if (!postId) {
-      if (threadError) { threadError.style.display = 'block'; threadError.textContent = I18n.t('thread_not_found') || 'Пост не указан.'; }
+      if (threadError) { threadError.style.display = 'block'; threadError.textContent = I18n.t('thread_not_found') || 'Post not specified.'; }
       return;
     }
 
     try {
       const res = await window.API.Post.getPost(postId);
       if (!res.success || !res.post) {
-        if (threadError) { threadError.style.display = 'block'; threadError.textContent = I18n.t('thread_not_found') || 'Пост не найден.'; }
+        if (threadError) { threadError.style.display = 'block'; threadError.textContent = I18n.t('thread_not_found') || 'Post not found.'; }
         return;
       }
       const post = res.post;
@@ -863,7 +863,7 @@ const App = {
         if (file.fileType === 'image' && fileUrl) {
           attachmentHtml = `<div class="post-attachment"><img src="${fileUrl}" alt="${safeName}" style="max-width:100%; border-radius:8px; margin-top:8px;"></div>`;
         } else if (fileUrl) {
-          attachmentHtml = `<div class="post-attachment"><a href="${fileUrl}" download="${safeName}" target="_blank">${I18n.t('attachment_download') || 'Скачать'} (${safeName})</a></div>`;
+          attachmentHtml = `<div class="post-attachment"><a href="${fileUrl}" download="${safeName}" target="_blank">${I18n.t('attachment_download') || 'Download'} (${safeName})</a></div>`;
         }
       }
       const reactionRow = ['heart','fire','laugh','wow'].map(key => ({
@@ -944,7 +944,7 @@ const App = {
       let replyHighlightTimer = null;
 
       const setPlaceholder = () => {
-        if (floatingInput) floatingInput.placeholder = (window.I18n && I18n.t('comment_placeholder')) || 'Написать комментарий...';
+        if (floatingInput) floatingInput.placeholder = (window.I18n && I18n.t('comment_placeholder')) || 'Write a comment...';
       };
       setPlaceholder();
 
@@ -963,7 +963,7 @@ const App = {
         replyToCommentId = commentId;
         const snippet = (comment.content || '').slice(0, 40);
         if (floatingReplyRef) {
-          const clearLabel = (window.I18n && I18n.t('cancel')) || 'Отмена';
+          const clearLabel = (window.I18n && I18n.t('cancel')) || 'Cancel';
           floatingReplyRef.innerHTML = `Ответ на #${commentId} <span class="floating-comment-reply-clear" role="button" tabindex="0">${clearLabel}</span>`;
           floatingReplyRef.style.display = 'block';
           floatingReplyRef.querySelector('.floating-comment-reply-clear').addEventListener('click', clearReplyRef);
@@ -1003,7 +1003,7 @@ const App = {
             if (threadCommentsCount) threadCommentsCount.textContent = totalCount;
             if (threadLoadMoreWrap) threadLoadMoreWrap.style.display = totalCount > COMMENT_PAGE_SIZE ? 'block' : 'none';
           }
-        } catch (e) { alert(I18n.t('error_save_comment') || 'Ошибка отправки: ' + e.message); }
+        } catch (e) { alert(I18n.t('error_save_comment') || 'Error sending: ' + e.message); }
       };
 
       if (floatingSubmit) floatingSubmit.addEventListener('click', sendFloatingComment);
@@ -1069,8 +1069,8 @@ const App = {
         threadCommentsToggle.addEventListener('click', () => {
           threadCommentsBody.classList.toggle('collapsed');
           threadCommentsToggle.textContent = threadCommentsBody.classList.contains('collapsed')
-            ? (I18n.t('thread_expand') || 'Развернуть')
-            : (I18n.t('thread_collapse') || 'Свернуть');
+            ? (I18n.t('thread_expand') || 'Expand')
+            : (I18n.t('thread_collapse') || 'Collapse');
         });
       }
       if (threadShareCopy && threadShareCopied) {
@@ -1088,7 +1088,7 @@ const App = {
         });
       }
     } catch (e) {
-      if (threadError) { threadError.style.display = 'block'; threadError.textContent = e.message || 'Ошибка загрузки.'; }
+      if (threadError) { threadError.style.display = 'block'; threadError.textContent = e.message || 'Load error.'; }
     }
   },
 
@@ -1218,7 +1218,7 @@ const App = {
             currentUser.bio = resp.user.bio;
           }
         } catch (error) {
-          alert('Ошибка: ' + error.message);
+          alert('Error: ' + error.message);
         }
       });
     }
@@ -1323,7 +1323,7 @@ const App = {
             await this.refreshCurrentPage();
           }
         } catch (error) {
-          alert('Ошибка: ' + error.message);
+          alert('Error: ' + error.message);
         }
       });
     }
@@ -1340,7 +1340,7 @@ const App = {
           try {
             const cropped = await window.openImageCrop(file);
             postImageBlob = cropped instanceof Blob ? cropped : null;
-            postFileStatus.textContent = (I18n.t('attachment_label') || 'Фото') + ': ' + (cropped instanceof File ? cropped.name : file.name);
+            postFileStatus.textContent = (I18n.t('attachment_label') || 'Photo') + ': ' + (cropped instanceof File ? cropped.name : file.name);
           } catch (err) {
             postImageBlob = file;
             postFileStatus.textContent = file.name;
@@ -1407,7 +1407,7 @@ const App = {
   async renderFeedPosts(currentUserId, weights = null) {
     const container = document.getElementById('postsContainer');
     if (!container) return;
-    container.innerHTML = '<p class="muted">Загрузка...</p>';
+    container.innerHTML = '<p class="muted">Loading...</p>';
 
     try {
       const response = await window.API.Recommendations.getPosts(weights || getRecommendationWeights());
@@ -1424,7 +1424,7 @@ const App = {
         }
       }
     } catch (error) {
-      container.innerHTML = `<p class="error-text">Ошибка загрузки: ${error.message}</p>`;
+      container.innerHTML = `<p class="error-text">Load error: ${error.message}</p>`;
     }
   },
 
@@ -1458,14 +1458,14 @@ const App = {
         });
       }
     } catch (error) {
-      console.error('Ошибка поиска:', error);
+      console.error('Search error:', error);
     }
   },
 
   async renderRecommendations(currentUserId, weights = null) {
     const container = document.getElementById('recommendationsContainer');
     if (!container) return;
-    container.innerHTML = '<p class="muted">Загрузка...</p>';
+    container.innerHTML = '<p class="muted">Loading...</p>';
 
     try {
       const response = await window.API.Recommendations.getUsers(weights || getRecommendationWeights());
@@ -1510,7 +1510,7 @@ const App = {
                 btn.textContent = followResponse.following ? I18n.t('unfollow') : I18n.t('follow');
               }
             } catch (error) {
-              alert('Ошибка: ' + error.message);
+              alert('Error: ' + error.message);
             }
           });
           container.appendChild(div);
@@ -1589,7 +1589,7 @@ const App = {
         if (storyScoreEl) storyScoreEl.textContent = stats.storyScore != null ? stats.storyScore : 0;
       }
     } catch (error) {
-      console.error('Ошибка загрузки статистики:', error);
+      console.error('Error loading stats:', error);
     }
 
     const bioForm = document.getElementById('bioForm');
@@ -1607,7 +1607,7 @@ const App = {
             if (bioEl) bioEl.textContent = bio || I18n.t('bio_empty');
           }
         } catch (error) {
-          alert('Ошибка: ' + error.message);
+          alert('Error: ' + error.message);
         }
       });
     }
@@ -1631,7 +1631,7 @@ const App = {
             }
           }
         } catch (error) {
-          alert('Ошибка: ' + error.message);
+          alert('Error: ' + error.message);
         }
         avatarInput.value = '';
       });
@@ -1648,14 +1648,14 @@ const App = {
             applyProfileGradient();
           }
         } catch (error) {
-          alert('Ошибка: ' + error.message);
+          alert('Error: ' + error.message);
         }
       });
     }
 
     const userPostsContainer = document.getElementById('userPostsContainer');
     if (userPostsContainer) {
-      userPostsContainer.innerHTML = '<p class="muted">Загрузка...</p>';
+      userPostsContainer.innerHTML = '<p class="muted">Loading...</p>';
       try {
         const postsResponse = await window.API.Post.getPosts(currentUser.id);
         const posts = Array.isArray(postsResponse?.posts) ? postsResponse.posts : [];
@@ -1668,12 +1668,12 @@ const App = {
               const el = await renderPost(post, currentUser.id);
               userPostsContainer.appendChild(el);
             } catch (err) {
-              console.error('Ошибка отрисовки поста:', post?.id, err);
+              console.error('Error rendering post:', post?.id, err);
             }
           }
         }
       } catch (error) {
-        userPostsContainer.innerHTML = `<p class="error-text">Ошибка загрузки: ${error.message}</p>`;
+        userPostsContainer.innerHTML = `<p class="error-text">Load error: ${error.message}</p>`;
       }
     }
 
@@ -1691,11 +1691,11 @@ const App = {
           if (followingCountEl) followingCountEl.textContent = stats.followingCount;
         }
       } catch (error) {
-        console.error('Ошибка обновления статистики:', error);
+        console.error('Error updating stats:', error);
       }
 
       if (userPostsContainer) {
-        userPostsContainer.innerHTML = '<p class="muted">Загрузка...</p>';
+        userPostsContainer.innerHTML = '<p class="muted">Loading...</p>';
         try {
           const postsResponse = await window.API.Post.getPosts(currentUser.id);
           const posts = Array.isArray(postsResponse?.posts) ? postsResponse.posts : [];
@@ -1708,12 +1708,12 @@ const App = {
                 const el = await renderPost(post, currentUser.id);
                 userPostsContainer.appendChild(el);
               } catch (err) {
-                console.error('Ошибка отрисовки поста:', post?.id, err);
+                console.error('Error rendering post:', post?.id, err);
               }
             }
           }
         } catch (error) {
-          userPostsContainer.innerHTML = `<p class="error-text">Ошибка загрузки: ${error.message}</p>`;
+          userPostsContainer.innerHTML = `<p class="error-text">Load error: ${error.message}</p>`;
         }
       }
     };
@@ -1783,7 +1783,7 @@ const App = {
         if (viewStoryScoreEl) viewStoryScoreEl.textContent = stats.storyScore != null ? stats.storyScore : 0;
       }
     } catch (error) {
-      console.error('Ошибка загрузки статистики:', error);
+      console.error('Error loading stats:', error);
     }
 
     const followBtn = document.getElementById('followBtn');
@@ -1810,11 +1810,11 @@ const App = {
               }
             }
           } catch (error) {
-            alert('Ошибка: ' + error.message);
+            alert('Error: ' + error.message);
           }
         });
       } catch (error) {
-        console.error('Ошибка проверки подписки:', error);
+        console.error('Error checking follow status:', error);
       }
     } else if (followBtn) {
       followBtn.style.display = 'none';
@@ -1822,7 +1822,7 @@ const App = {
 
     const postsContainer = document.getElementById('viewUserPostsContainer');
     if (postsContainer) {
-      postsContainer.innerHTML = '<p class="muted">Загрузка...</p>';
+      postsContainer.innerHTML = '<p class="muted">Loading...</p>';
       try {
         const postsResponse = await window.API.Post.getPosts(viewedUserId);
         if (postsResponse.success) {
@@ -1837,7 +1837,7 @@ const App = {
           }
         }
       } catch (error) {
-        postsContainer.innerHTML = `<p class="error-text">Ошибка загрузки: ${error.message}</p>`;
+        postsContainer.innerHTML = `<p class="error-text">Load error: ${error.message}</p>`;
       }
     }
 
@@ -1897,7 +1897,7 @@ const App = {
       subtitleEl.textContent = baseTitle;
     }
 
-    listEl.innerHTML = '<p class="muted">Загрузка...</p>';
+    listEl.innerHTML = '<p class="muted">Loading...</p>';
 
     try {
       let users = [];
@@ -1934,7 +1934,7 @@ const App = {
         listEl.appendChild(div);
       });
     } catch (error) {
-      listEl.innerHTML = `<p class="error-text">Ошибка загрузки: ${error.message}</p>`;
+      listEl.innerHTML = `<p class="error-text">Load error: ${error.message}</p>`;
     }
   },
 
@@ -2228,7 +2228,7 @@ const App = {
             lastLoadedMessageIds.clear();
             loadConversation(selectedUser.id, selectedUser.username, true);
           }
-        }).catch(err => alert('Ошибка: ' + err.message));
+        }).catch(err => alert('Error: ' + err.message));
       }
       sendBtn.addEventListener('click', sendMessage);
       inputEl.addEventListener('keydown', (e) => {
@@ -2371,7 +2371,7 @@ const App = {
           <div class="messenger-msg-text">${textHtml}</div>
           <div class="messenger-msg-time">${formatMessageTime(msg.createdAt)}</div>
           <div class="messenger-msg-reactions">${reactionRow}</div>
-          <div class="messenger-msg-actions"><button type="button" class="messenger-msg-reply-btn" data-message-id="${msg.id}">${I18n.t('comment_reply') || 'Ответить'}</button></div>
+          <div class="messenger-msg-actions"><button type="button" class="messenger-msg-reply-btn" data-message-id="${msg.id}">${I18n.t('comment_reply') || 'Reply'}</button></div>
         </div>
       `;
       div.querySelectorAll('.messenger-reaction-btn').forEach(btn => {
@@ -2397,7 +2397,7 @@ const App = {
       });
       div.querySelector('.messenger-msg-reply-btn').addEventListener('click', () => {
         replyToMessageId = msg.id;
-        replyRefEl.innerHTML = `${I18n.t('comment_reply') || 'Ответ'} #${msg.id} <span class="messenger-reply-clear">${I18n.t('cancel') || 'Отмена'}</span>`;
+        replyRefEl.innerHTML = `${I18n.t('comment_reply') || 'Reply'} #${msg.id} <span class="messenger-reply-clear">${I18n.t('cancel') || 'Cancel'}</span>`;
         replyRefEl.classList.remove('hidden');
         replyRefEl.querySelector('.messenger-reply-clear').onclick = clearReplyRef;
         inputEl.value = `>>#${msg.id} ` + (inputEl.value || '').trimStart();
@@ -2444,7 +2444,7 @@ const App = {
         const list = resp.messages;
         if (list.length === 0 && !appendNewOnly) {
           allMessages = [];
-          messagesContainer.innerHTML = '<p class="muted">' + (I18n.t('no_messages') || 'Нет сообщений') + '</p>';
+          messagesContainer.innerHTML = '<p class="muted">' + (I18n.t('no_messages') || 'No messages') + '</p>';
           return;
         }
         if (appendNewOnly) {
@@ -2474,7 +2474,7 @@ const App = {
           });
           if (messengerFilterAuthor) {
             const cur = messengerFilterAuthor.value;
-            messengerFilterAuthor.innerHTML = '<option value="">' + (I18n.t('messenger_filter_all') || 'Все') + '</option>' +
+            messengerFilterAuthor.innerHTML = '<option value="">' + (I18n.t('messenger_filter_all') || 'All') + '</option>' +
               Object.entries(authorOpts).map(([id, name]) => `<option value="${id}">${escapeHtml(name)}</option>`).join('');
             messengerFilterAuthor.value = cur || '';
           }
@@ -2489,7 +2489,7 @@ const App = {
       try {
         const t = await window.API.Rooms.getTyping(currentRoom.id);
         if (t.success && t.typingUserIds && t.typingUserIds.length) {
-          typingEl.textContent = (I18n.t('messenger_typing') || 'печатает...');
+          typingEl.textContent = (I18n.t('messenger_typing') || 'typing...');
           typingEl.classList.remove('hidden');
         } else typingEl.classList.add('hidden');
       } catch (_) { typingEl.classList.add('hidden'); }
@@ -2519,7 +2519,7 @@ const App = {
           if (messengerMutedBanner) {
             try {
               const untilStr = new Date(resp.mutedUntil).toLocaleString();
-              messengerMutedBanner.textContent = (I18n.t('messenger_muted_until') || 'Вы замучены до') + ' ' + untilStr;
+              messengerMutedBanner.textContent = (I18n.t('messenger_muted_until') || 'You are muted until') + ' ' + untilStr;
               messengerMutedBanner.classList.remove('hidden');
             } catch (_) {}
           }
@@ -2536,14 +2536,14 @@ const App = {
           }
           scrollToBottom(true);
         }
-      } catch (e) { alert((I18n.t('error_save_comment') || 'Ошибка') + ': ' + e.message); }
+      } catch (e) { alert((I18n.t('error_save_comment') || 'Error') + ': ' + e.message); }
     }
     async function openRoom(room) {
       currentRoom = room;
       document.body.classList.add('messenger-panel-open');
       if (placeholder) placeholder.style.display = 'none';
       if (floatingPanel) { floatingPanel.classList.add('visible'); floatingPanel.setAttribute('aria-hidden', 'false'); }
-      if (roomTitleEl) roomTitleEl.textContent = room.title || (I18n.t('messenger_dm') || 'Личный чат');
+      if (roomTitleEl) roomTitleEl.textContent = room.title || (I18n.t('messenger_dm') || 'Direct chat');
       if (roomBadgeEl) {
         roomBadgeEl.classList.remove('hidden');
         if ((room.messageCount || 0) >= 15) roomBadgeEl.textContent = '🔥 Hot';
@@ -2566,7 +2566,7 @@ const App = {
           mutedUntil = muteResp.mutedUntil;
           if (messengerMutedBanner) {
             try {
-              messengerMutedBanner.textContent = (I18n.t('messenger_muted_until') || 'Вы замучены до') + ' ' + new Date(muteResp.mutedUntil).toLocaleString();
+              messengerMutedBanner.textContent = (I18n.t('messenger_muted_until') || 'You are muted until') + ' ' + new Date(muteResp.mutedUntil).toLocaleString();
               messengerMutedBanner.classList.remove('hidden');
             } catch (_) {}
           }
@@ -2603,14 +2603,14 @@ const App = {
       div.type = 'button';
       div.className = 'messages-conv-item' + (currentRoom && currentRoom.id === room.id ? ' selected' : '') + ((room.messageCount || 0) >= 15 ? ' messenger-room-item hot' : '');
       div.dataset.roomId = room.id;
-      const title = room.title || (I18n.t('messenger_dm') || 'Личный чат');
+      const title = room.title || (I18n.t('messenger_dm') || 'Direct chat');
       const preview = (room.lastMessageContent || '').slice(0, 35);
       const timeStr = room.lastMessageAt ? formatMessageTime(room.lastMessageAt) : '';
       div.innerHTML = `
         <span class="conv-avatar-wrap"><span class="conv-avatar-letter">${(title || '?').charAt(0).toUpperCase()}</span></span>
         <div class="conv-body">
           <div class="conv-meta"><span class="conv-name">${escapeHtml(title)}</span>${timeStr ? `<span class="conv-time">${timeStr}</span>` : ''}</div>
-          <div class="conv-preview">${escapeHtml(preview) || (I18n.t('no_messages') || 'Нет сообщений')}</div>
+          <div class="conv-preview">${escapeHtml(preview) || (I18n.t('no_messages') || 'No messages')}</div>
         </div>
       `;
       div.addEventListener('click', () => openRoom(room));
@@ -2622,8 +2622,8 @@ const App = {
         if (!roomsList) return;
         roomsList.innerHTML = '';
         if (resp.success && resp.rooms && resp.rooms.length) resp.rooms.forEach(room => roomsList.appendChild(renderRoomItem(room)));
-        else roomsList.innerHTML = '<p class="muted">' + (I18n.t('no_conversations') || 'Нет чатов') + '</p>';
-      } catch (e) { if (roomsList) roomsList.innerHTML = '<p class="muted">' + (I18n.t('no_conversations') || 'Нет чатов') + '</p>'; }
+        else roomsList.innerHTML = '<p class="muted">' + (I18n.t('no_conversations') || 'No conversations') + '</p>';
+      } catch (e) { if (roomsList) roomsList.innerHTML = '<p class="muted">' + (I18n.t('no_conversations') || 'No conversations') + '</p>'; }
     }
     if (emojiPicker) EMOJI_LIST.forEach(emoji => {
       const btn = document.createElement('button'); btn.type = 'button'; btn.textContent = emoji;
@@ -2681,8 +2681,8 @@ const App = {
         document.body.classList.toggle('messenger-panel-collapsed', collapsed);
         messengerMinimizeBtn.textContent = collapsed ? '+' : '−';
         const title = collapsed
-          ? (I18n.t('messenger_expand') || 'Развернуть')
-          : (I18n.t('messenger_minimize') || 'Свернуть');
+          ? (I18n.t('messenger_expand') || 'Expand')
+          : (I18n.t('messenger_minimize') || 'Minimize');
         messengerMinimizeBtn.setAttribute('title', title);
         messengerMinimizeBtn.setAttribute('aria-label', title);
       });
@@ -2703,7 +2703,7 @@ const App = {
         document.addEventListener('mouseup', onUp);
       });
       if (window.I18n) {
-        const resizeTitle = I18n.t('messenger_resize') || 'Изменить размер';
+        const resizeTitle = I18n.t('messenger_resize') || 'Resize';
         messengerResizeHandle.setAttribute('title', resizeTitle);
       }
     }
@@ -2739,14 +2739,14 @@ const App = {
           const isMe = String(m.userId) === String(me.id);
           const actionsHtml = amIAdmin && !isMe ? `
             <div class="messenger-member-actions">
-              <button type="button" class="btn ghost small messenger-mute-member-btn" data-user-id="${m.userId}" data-username="${escapeHtml(name)}" title="${I18n.t('messenger_mute_user') || 'Замутить'}">🔇</button>
-              <button type="button" class="btn ghost small messenger-remove-member-btn" data-user-id="${m.userId}" data-username="${escapeHtml(name)}" title="${I18n.t('messenger_remove') || 'Удалить'}">✕</button>
+              <button type="button" class="btn ghost small messenger-mute-member-btn" data-user-id="${m.userId}" data-username="${escapeHtml(name)}" title="${I18n.t('messenger_mute_user') || 'Mute'}">🔇</button>
+              <button type="button" class="btn ghost small messenger-remove-member-btn" data-user-id="${m.userId}" data-username="${escapeHtml(name)}" title="${I18n.t('messenger_remove') || 'Remove'}">✕</button>
             </div>
           ` : '';
           row.innerHTML = `
             <div class="messenger-member-info">
               <span class="avatar">${avatarHtml}</span>
-              <span>${escapeHtml(name)}${m.isAdmin ? ' ★' : ''}${isMe ? ' (' + (I18n.t('you') || 'вы') + ')' : ''}</span>
+              <span>${escapeHtml(name)}${m.isAdmin ? ' ★' : ''}${isMe ? ' (' + (I18n.t('you') || 'you') + ')' : ''}</span>
             </div>
             ${actionsHtml}
           `;
@@ -2758,16 +2758,16 @@ const App = {
             if (messengerMuteModal) messengerMuteModal.classList.remove('hidden');
           });
           if (removeBtn) removeBtn.addEventListener('click', async () => {
-            if (!confirm((I18n.t('messenger_remove_confirm') || 'Удалить') + ' ' + name + '?')) return;
+            if (!confirm((I18n.t('messenger_remove_confirm') || 'Remove') + ' ' + name + '?')) return;
             try {
               await window.API.Rooms.removeRoomMember(currentRoom.id, m.userId);
               row.remove();
               await refreshRooms();
-            } catch (err) { alert((I18n.t('error') || 'Ошибка') + ': ' + err.message); }
+            } catch (err) { alert((I18n.t('error') || 'Error') + ': ' + err.message); }
           });
           messengerMembersList.appendChild(row);
         });
-      } catch (e) { if (messengerMembersList) messengerMembersList.innerHTML = '<p class="muted">' + (e.message || 'Ошибка') + '</p>'; }
+      } catch (e) { if (messengerMembersList) messengerMembersList.innerHTML = '<p class="muted">' + (e.message || 'Error') + '</p>'; }
     }
     if (messengerAddMembersBtn && messengerMembersModal) {
       messengerAddMembersBtn.addEventListener('click', () => {
@@ -2787,13 +2787,13 @@ const App = {
         try {
           const resp = await window.API.User.searchUsers(q);
           const users = (resp.users || []).filter(u => String(u.id) !== String(me.id));
-          if (users.length === 0) { alert(I18n.t('no_users_found') || 'Никого не найдено'); return; }
+          if (users.length === 0) { alert(I18n.t('no_users_found') || 'No users found'); return; }
           const ids = users.slice(0, 10).map(u => u.id);
           await window.API.Rooms.addRoomMembers(currentRoom.id, ids);
           messengerAddMemberSearch.value = '';
           await loadMembersModal();
           await refreshRooms();
-        } catch (err) { alert((I18n.t('error') || 'Ошибка') + ': ' + err.message); }
+        } catch (err) { alert((I18n.t('error') || 'Error') + ': ' + err.message); }
       });
     }
     if (messengerMuteModal) {
@@ -2808,7 +2808,7 @@ const App = {
           await window.API.Rooms.muteUser(currentRoom.id, muteTargetUserId, minutes);
           messengerMuteModal.classList.add('hidden');
           muteTargetUserId = null;
-        } catch (err) { alert((I18n.t('error') || 'Ошибка') + ': ' + err.message); }
+        } catch (err) { alert((I18n.t('error') || 'Error') + ': ' + err.message); }
       });
     }
     if (createRoomBtn && createRoomModal) {
@@ -2840,7 +2840,7 @@ const App = {
         try {
           const resp = await window.API.Rooms.createRoom({ title, type, isAnonymous, expiresInDays, isPublic, memberIds });
           if (resp.success && resp.room) { createRoomModal.classList.add('hidden'); await refreshRooms(); openRoom(resp.room); }
-        } catch (e) { alert('Ошибка: ' + e.message); }
+        } catch (e) { alert('Error: ' + e.message); }
       });
     }
     async function loadRecommendations() {
@@ -2853,21 +2853,21 @@ const App = {
         }
         if (!recommendationsList) return;
         recommendationsList.innerHTML = '';
-        if (toShow.length === 0) { recommendationsList.innerHTML = '<p class="muted">' + (I18n.t('no_recommendations_msg') || 'Нет рекомендаций') + '</p>'; return; }
+        if (toShow.length === 0) { recommendationsList.innerHTML = '<p class="muted">' + (I18n.t('no_recommendations_msg') || 'No recommendations') + '</p>'; return; }
         toShow.forEach(u => {
           const div = document.createElement('button');
           div.type = 'button';
           div.className = 'messages-conv-item';
-          div.innerHTML = `<span class="conv-avatar-wrap">${u.avatar ? `<img class="conv-avatar" src="${getFileUrl(u.avatar)}" alt="">` : `<span class="conv-avatar-letter">${(u.username || '?').charAt(0).toUpperCase()}</span>`}</span><div class="conv-body"><div class="conv-name">${escapeHtml(u.username)}</div><div class="conv-preview">${I18n.t('messenger_start_dm') || 'Написать'}</div></div>`;
+          div.innerHTML = `<span class="conv-avatar-wrap">${u.avatar ? `<img class="conv-avatar" src="${getFileUrl(u.avatar)}" alt="">` : `<span class="conv-avatar-letter">${(u.username || '?').charAt(0).toUpperCase()}</span>`}</span><div class="conv-body"><div class="conv-name">${escapeHtml(u.username)}</div><div class="conv-preview">${I18n.t('messenger_start_dm') || 'Message'}</div></div>`;
           div.addEventListener('click', async () => {
             try {
               const resp = await window.API.Rooms.createRoom({ type: 'dm', memberIds: [u.id] });
               if (resp.success && resp.room) { await refreshRooms(); openRoom(resp.room); }
-            } catch (err) { alert('Ошибка: ' + err.message); }
+            } catch (err) { alert('Error: ' + err.message); }
           });
           recommendationsList.appendChild(div);
         });
-      } catch (e) { if (recommendationsList) recommendationsList.innerHTML = '<p class="muted">' + (I18n.t('no_recommendations_msg') || 'Нет рекомендаций') + '</p>'; }
+      } catch (e) { if (recommendationsList) recommendationsList.innerHTML = '<p class="muted">' + (I18n.t('no_recommendations_msg') || 'No recommendations') + '</p>'; }
     }
     if (searchInput) {
       let searchTimeout;
@@ -2890,11 +2890,11 @@ const App = {
                 try {
                   const r = await window.API.Rooms.createRoom({ type: 'dm', memberIds: [u.id] });
                   if (r.success && r.room) { await refreshRooms(); openRoom(r.room); }
-                } catch (err) { alert('Ошибка: ' + err.message); }
+                } catch (err) { alert('Error: ' + err.message); }
               });
               recommendationsList.appendChild(div);
             });
-            if (users.length === 0) recommendationsList.innerHTML = '<p class="muted">' + (I18n.t('no_recommendations_msg') || 'Никого не найдено') + '</p>';
+            if (users.length === 0) recommendationsList.innerHTML = '<p class="muted">' + (I18n.t('no_recommendations_msg') || 'No users found') + '</p>';
           } catch (_) {}
         }, 300);
       });
