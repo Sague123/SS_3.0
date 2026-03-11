@@ -185,6 +185,7 @@ const TRANSLATIONS = {
     cancel: 'Zrušit',
     error_save_comment: 'Komentář se nepodařilo uložit.',
     error_delete_comment: 'Komentář se nepodařilo smazat.',
+    error_policies_required: 'Pro registraci musíte souhlasit s pravidly platformy a politikou zpracování dat.',
     thread_title: 'Diskuse',
     thread_subtitle: 'Diskuse k příspěvku',
     thread_comments: 'Komentáře',

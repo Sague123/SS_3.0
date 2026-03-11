@@ -1100,6 +1100,9 @@ const App = {
 
     const loginForm = document.getElementById('loginForm');
     const registerForm = document.getElementById('registerForm');
+    const agreeRules = document.getElementById('regAgreeRules');
+    const agreeData = document.getElementById('regAgreeData');
+    const registerSubmitBtn = document.getElementById('registerSubmitBtn');
 
     if (loginForm) {
       loginForm.addEventListener('submit', async (e) => {
@@ -1130,6 +1133,21 @@ const App = {
       });
     }
 
+    function updateRegisterButtonState() {
+      if (!registerSubmitBtn) return;
+      const rulesOk = !agreeRules || agreeRules.checked;
+      const dataOk = !agreeData || agreeData.checked;
+      registerSubmitBtn.disabled = !(rulesOk && dataOk);
+    }
+
+    if (agreeRules) {
+      agreeRules.addEventListener('change', updateRegisterButtonState);
+    }
+    if (agreeData) {
+      agreeData.addEventListener('change', updateRegisterButtonState);
+    }
+    updateRegisterButtonState();
+
     if (registerForm) {
       registerForm.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -1139,6 +1157,12 @@ const App = {
         const errorEl = document.getElementById('registerError');
 
         if (!usernameInput || !emailInput || !passwordInput || !errorEl) return;
+
+        if ((agreeRules && !agreeRules.checked) || (agreeData && !agreeData.checked)) {
+          errorEl.textContent = I18n.t('error_policies_required') || 'Musíte souhlasit s pravidly a politikou zpracování dat.';
+          updateRegisterButtonState();
+          return;
+        }
 
         const username = usernameInput.value.trim();
         const email = emailInput.value.trim();
@@ -1279,7 +1303,7 @@ const App = {
               <div class="avatar">${userAvatarHTML(u)}</div>
               <div>
                 <a href="user.html?id=${u.id}"><strong>${escapeHtml(u.username)}</strong></a>
-                <div class="muted">${escapeHtml(u.email || '')}</div>
+                <div class="muted">${escapeHtml(u.bio || '')}</div>
               </div>
             </div>
           `;
@@ -2157,7 +2181,7 @@ const App = {
               <span class="conv-avatar-wrap">${u.avatar ? `<img class="conv-avatar" src="${u.avatar.startsWith('http') ? u.avatar : getServerOrigin() + '/api/files/' + u.avatar.replace(/^uploads[\/\\]/, '').replace(/\\/g, '/')}" alt="">` : `<span class="conv-avatar-letter">${(u.username || '?').charAt(0).toUpperCase()}</span>`}</span>
               <div class="conv-body">
                 <div class="conv-name"><span class="messages-status-dot offline"></span>${escapeHtml(u.username)}</div>
-                <div class="conv-preview">${escapeHtml(u.email || '')}</div>
+                <div class="conv-preview">${escapeHtml(u.bio || '')}</div>
               </div>
             `;
             div.addEventListener('click', () => selectUserAndLoad(u, div));
@@ -2885,7 +2909,7 @@ const App = {
               const div = document.createElement('button');
               div.type = 'button';
               div.className = 'messages-conv-item';
-              div.innerHTML = `<span class="conv-avatar-wrap">${u.avatar ? `<img class="conv-avatar" src="${getFileUrl(u.avatar)}" alt="">` : `<span class="conv-avatar-letter">${(u.username || '?').charAt(0).toUpperCase()}</span>`}</span><div class="conv-body"><div class="conv-name">${escapeHtml(u.username)}</div><div class="conv-preview">${escapeHtml(u.email || '')}</div></div>`;
+              div.innerHTML = `<span class="conv-avatar-wrap">${u.avatar ? `<img class="conv-avatar" src="${getFileUrl(u.avatar)}" alt="">` : `<span class="conv-avatar-letter">${(u.username || '?').charAt(0).toUpperCase()}</span>`}</span><div class="conv-body"><div class="conv-name">${escapeHtml(u.username)}</div><div class="conv-preview">${escapeHtml(u.bio || '')}</div></div>`;
               div.addEventListener('click', async () => {
                 try {
                   const r = await window.API.Rooms.createRoom({ type: 'dm', memberIds: [u.id] });

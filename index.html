@@ -58,10 +58,44 @@
           <label for="regPassword" data-i18n="register_password_label">Heslo</label>
           <input type="password" id="regPassword" required>
         </div>
-        <button type="submit" class="btn primary" data-i18n="register_button">Registrovat se</button>
+        <div class="form-group checkbox-group">
+          <label class="checkbox-label">
+            <input type="checkbox" id="regAgreeRules" required>
+            <span>Souhlasím s pravidly platformy</span>
+          </label>
+          <div class="policy-link">
+            <button type="button" class="link-button" data-policy="platform" id="openPlatformPolicy">
+              Zobrazit úplné znění pravidel
+            </button>
+          </div>
+        </div>
+        <div class="form-group checkbox-group">
+          <label class="checkbox-label">
+            <input type="checkbox" id="regAgreeData" required>
+            <span>Souhlasím s politikou zpracování dat</span>
+          </label>
+          <div class="policy-link">
+            <button type="button" class="link-button" data-policy="data" id="openDataPolicy">
+              Zobrazit úplné znění politiky
+            </button>
+          </div>
+        </div>
+        <button type="submit" class="btn primary" data-i18n="register_button" id="registerSubmitBtn">Registrovat se</button>
         <p id="registerError" class="error-text"></p>
       </form>
     </main>
+
+    <!-- Modální okno pro zobrazení pravidel / politiky -->
+    <div id="policyModal" class="modal hidden" aria-hidden="true">
+      <div class="modal-backdrop"></div>
+      <div class="modal-content card">
+        <h2 id="policyModalTitle">Dokument</h2>
+        <div id="policyModalBody" class="modal-body">
+          <!-- Obsah pravidel / politiky se načte dynamicky -->
+        </div>
+        <button type="button" id="policyModalClose" class="btn ghost">Zavřít</button>
+      </div>
+    </div>
 
     <footer class="app-footer">
       <p data-i18n="footer_index">Projekt pro maturitní práci — data na serveru v SQL databázi se šifrováním.</p>
@@ -95,6 +129,62 @@
     // Применяем переводы после первичной инициализации
     if (window.I18n) {
       window.I18n.apply(document);
+    }
+
+    // Logika модального окна с политиками
+    const policyModal = document.getElementById('policyModal');
+    const policyModalTitle = document.getElementById('policyModalTitle');
+    const policyModalBody = document.getElementById('policyModalBody');
+    const policyModalClose = document.getElementById('policyModalClose');
+
+    async function openPolicy(type) {
+      if (!policyModal || !policyModalBody || !policyModalTitle) return;
+      let url = '';
+      let title = '';
+      if (type === 'platform') {
+        url = 'policies_platform.html';
+        title = 'Pravidla platformy';
+      } else if (type === 'data') {
+        url = 'policies_data.html';
+        title = 'Politika zpracování dat';
+      } else {
+        return;
+      }
+      try {
+        const resp = await fetch(url, { cache: 'no-cache' });
+        const html = await resp.text();
+        policyModalTitle.textContent = title;
+        policyModalBody.innerHTML = html;
+      } catch (e) {
+        policyModalTitle.textContent = title;
+        policyModalBody.innerHTML = '<p class="error-text">Nepodařilo se načíst dokument.</p>';
+      }
+      policyModal.classList.remove('hidden');
+      policyModal.setAttribute('aria-hidden', 'false');
+    }
+
+    const openPlatformPolicyBtn = document.getElementById('openPlatformPolicy');
+    const openDataPolicyBtn = document.getElementById('openDataPolicy');
+    if (openPlatformPolicyBtn) {
+      openPlatformPolicyBtn.addEventListener('click', () => openPolicy('platform'));
+    }
+    if (openDataPolicyBtn) {
+      openDataPolicyBtn.addEventListener('click', () => openPolicy('data'));
+    }
+
+    if (policyModalClose) {
+      policyModalClose.addEventListener('click', () => {
+        policyModal.classList.add('hidden');
+        policyModal.setAttribute('aria-hidden', 'true');
+      });
+    }
+    if (policyModal) {
+      policyModal.addEventListener('click', (e) => {
+        if (e.target === policyModal || e.target.classList.contains('modal-backdrop')) {
+          policyModal.classList.add('hidden');
+          policyModal.setAttribute('aria-hidden', 'true');
+        }
+      });
     }
   </script>
 </body>

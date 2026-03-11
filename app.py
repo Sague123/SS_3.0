@@ -1352,7 +1352,11 @@ def send_room_message(room_id):
     data = request.get_json() or {}
     content = (data.get('content') or '').strip()
     is_anonymous = 1 if data.get('isAnonymous') else 0
-    reply_to_id = data.get('replyToId', type=int)
+    reply_to_raw = data.get('replyToId')
+    try:
+        reply_to_id = int(reply_to_raw) if reply_to_raw is not None else None
+    except (TypeError, ValueError):
+        reply_to_id = None
 
     if not content:
         return jsonify({'success': False, 'message': 'Message cannot be empty'}), 400
@@ -1372,10 +1376,11 @@ def send_room_message(room_id):
         return jsonify({'success': False, 'message': 'Access denied'}), 403
 
     if _is_user_muted(cursor, room_id, current_user_id):
-        conn.close()
         cursor.execute('SELECT mutedUntil FROM ChatRoomMute WHERE roomId = ? AND userId = ?', (room_id, current_user_id))
         r = cursor.fetchone()
-        return jsonify({'success': False, 'message': 'You are muted', 'mutedUntil': r['mutedUntil'] if r else None}), 403
+        muted_until = r['mutedUntil'] if r else None
+        conn.close()
+        return jsonify({'success': False, 'message': 'You are muted', 'mutedUntil': muted_until}), 403
 
     created_at = datetime.now().isoformat()
     cursor.execute('''
@@ -1546,8 +1551,13 @@ def mute_room_user(room_id):
     if not current_user_id:
         return jsonify({'success': False, 'message': 'Authentication required'}), 401
     data = request.get_json() or {}
-    target_user_id = data.get('userId', type=int)
+    target_user_raw = data.get('userId')
     minutes = data.get('minutes', 60)
+    try:
+        target_user_id = int(target_user_raw) if target_user_raw is not None else None
+    except (TypeError, ValueError):
+        target_user_id = None
+
     if not target_user_id:
         return jsonify({'success': False, 'message': 'Specify userId'}), 400
     try:
